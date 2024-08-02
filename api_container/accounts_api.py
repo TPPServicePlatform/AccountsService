@@ -72,7 +72,8 @@ def create_account(username: str, complete_name: str, email: str, profile_pictur
         "is_provider": true
     }'
     """
-    sql_manager.insert(username, complete_name, email, profile_picture, is_provider)
+    if not sql_manager.insert(username, complete_name, email, profile_picture, is_provider):
+        raise HTTPException(status_code=400, detail="Account already exists")
     return {"status": "ok"}
 
 @app.delete("/accounts/{username}")
