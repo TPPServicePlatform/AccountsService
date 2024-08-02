@@ -1,5 +1,5 @@
 version: '3.4'
-name: "accounts_service"
+name: "accounts-service"
 
 services:
     
