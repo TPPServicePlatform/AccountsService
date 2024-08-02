@@ -1,0 +1,12 @@
+version: '3.4'
+name: "accounts_service"
+
+services:
+    
+  accounts_api:
+    build:
+      context: ./
+      dockerfile: ./api_container/Dockerfile
+    ports:
+      - "${EXTERNAL_ACCOUNTS_API_PORT}:${ACCOUNTS_API_PORT}"
+    restart: unless-stopped

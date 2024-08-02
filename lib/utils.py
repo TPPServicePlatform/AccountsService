@@ -3,6 +3,9 @@ import os
 from typing import Optional, Union
 from dotenv import load_dotenv
 
+HOUR = 60 * 60
+MINUTE = 60
+MILLISECOND = 1_000
 
 def get_connection() -> Union[psycopg2.extensions.connection, None]:
     try:
@@ -19,31 +22,8 @@ def get_connection() -> Union[psycopg2.extensions.connection, None]:
     except psycopg2.OperationalError:
         return None
 
-
-def createTable():
-    connection = get_connection()
-    cursor = connection.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(50) NOT NULL,
-            password VARCHAR(50) NOT NULL
-        )
-        """
-    )
-    cursor.close()
-    connection.close()
-
-
-def main():
-    load_dotenv()
-    connection = get_connection()
-    if connection:
-        print("Connection established")
-        createTable()
-    else:
-        print("Connection failed")
-
-
-main()
+def time_to_string(time_in_seconds: float) -> str:
+    minutes = int(time_in_seconds // MINUTE)
+    seconds = int(time_in_seconds % MINUTE)
+    millis = int((time_in_seconds - int(time_in_seconds)) * MILLISECOND)
+    return f"{minutes}m {seconds}s {millis}ms"
