@@ -1,15 +1,16 @@
 from accounts_sql import Accounts
 import logging as logger
 import time
+from firebase_manager import FirebaseManager
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from lib.utils import *
 import sys
-
 time_start = time.time()
 
-logger.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', stream=sys.stdout, level=logger.INFO)
+logger.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s',
+                   stream=sys.stdout, level=logger.INFO)
 logger.info("Starting the app")
 load_dotenv()
 
@@ -38,10 +39,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+firebase_manager = FirebaseManager()
 sql_manager = Accounts()
 
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
+
 
 @app.get("/accounts/{username}")
 def get_account(username: str):
@@ -56,12 +59,13 @@ def get_account(username: str):
         raise HTTPException(status_code=404, detail="Account not found")
     return account
 
+
 @app.post("/accounts")
-def create_account(username: str, complete_name: str, email: str, profile_picture: str, is_provider: bool):
+def create_account(username: str, password: str, complete_name: str, email: str, profile_picture: str, is_provider: bool):
     """
     curl example to create an account:
     curl -X 'POST' \
-        'http://localhost:8000/api/accounts' \
+        'http://localhost:9212/api/accounts' \
         -H 'accept: application/json' \
         -H 'Content-Type: application/json' \
         -d '{
@@ -72,9 +76,12 @@ def create_account(username: str, complete_name: str, email: str, profile_pictur
         "is_provider": true
     }'
     """
+    created_user = firebase_manager.create_user(email, password)
+
     if not sql_manager.insert(username, complete_name, email, profile_picture, is_provider):
         raise HTTPException(status_code=400, detail="Account already exists")
     return {"status": "ok"}
+
 
 @app.delete("/accounts/{username}")
 def delete_account(username: str):
