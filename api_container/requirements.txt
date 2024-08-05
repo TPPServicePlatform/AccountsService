@@ -3,4 +3,4 @@ fastapi
 uvicorn
 requests
 SQLAlchemy
-
+firebase-admin
