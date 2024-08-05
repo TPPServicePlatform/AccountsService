@@ -26,8 +26,6 @@ app = FastAPI(
 )
 
 origins = [
-    # To complete
-    "http://example.com"
 ]
 
 app.add_middleware(
@@ -40,50 +38,50 @@ app.add_middleware(
 
 sql_manager = Accounts()
 
+REQUIRED_CREATE_FIELDS = ["username", "complete_name", "email", "profile_picture", "is_provider"]
+
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
 
-@app.get("/accounts/{username}")
+@app.get("/{username}")
 def get_account(username: str):
     """
     curl example to get an account:
-    curl -X 'GET' \
-        'http://localhost:8000/api/accounts/marco' \
-        -H 'accept: application/json'
+    curl -X 'GET' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
     """
     account = sql_manager.get(username)
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
 
-@app.post("/accounts")
-def create_account(username: str, complete_name: str, email: str, profile_picture: str, is_provider: bool):
+@app.post("/create_account")
+def create_account(body: dict):
     """
     curl example to create an account:
-    curl -X 'POST' \
-        'http://localhost:8000/api/accounts' \
-        -H 'accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -d '{
-        "username": "marco",
-        "complete_name": "Marco Polo",
-        "email": marco@polo.com,
-        "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg",
-        "is_provider": true
-    }'
+    curl -X 'POST' 'http://localhost:8000/api/accounts/create_account' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
     """
+    username = body.get("username")
+    complete_name = body.get("complete_name")
+    email = body.get("email")
+    profile_picture = body.get("profile_picture")
+    is_provider = body.get("is_provider")
+    if None in [username, complete_name, email, profile_picture, is_provider]:
+        missing_fields = [field for field in REQUIRED_CREATE_FIELDS if body.get(field) is None]
+        raise HTTPException(status_code=400, detail=f"Missing fields: {missing_fields}")
     if not sql_manager.insert(username, complete_name, email, profile_picture, is_provider):
         raise HTTPException(status_code=400, detail="Account already exists")
     return {"status": "ok"}
 
-@app.delete("/accounts/{username}")
+@app.delete("/{username}")
 def delete_account(username: str):
     """
     curl example to delete an account:
-    curl -X 'DELETE' \
-        'http://localhost:8000/api/accounts/marco' \
-        -H 'accept: application/json'
+    curl -X 'DELETE' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
     """
     if not sql_manager.delete(username):
         raise HTTPException(status_code=404, detail="Account not found")
     return {"status": "ok"}
+
+# @app.put("/accounts/{username}")
+# def update_account(username: str, body: dict):
+#     return {"message": "This method is not implemented yet"}
