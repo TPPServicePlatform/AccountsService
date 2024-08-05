@@ -8,9 +8,5 @@ RUN cat /code/lib/.env >> /code/.env
 RUN cat /code/lib/requirements.txt >> /code/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
-# RUN pip install --no-cache-dir --upgrade -r /code/lib/requirements.txt
 
 CMD ["uvicorn", "accounts_api:app", "--port", "9212", "--host", "0.0.0.0", "--reload"]
-
-# make the container not run anything but being accesible
-# CMD ["tail", "-f", "/dev/null"]
