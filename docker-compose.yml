@@ -3,7 +3,7 @@ name: "accounts-service"
 
 services:
     
-  accounts_api:
+  api:
     build:
       context: ./
       dockerfile: ./api_container/Dockerfile
