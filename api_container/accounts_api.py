@@ -49,7 +49,8 @@ logger.info(f"Accounts API started in {starting_duration}")
 def get_account(username: str):
     """
     curl example to get an account:
-    curl -X 'GET' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
+    sin nginx -> curl -X 'GET' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
+    con nginx -> curl -X 'GET' 'http://localhost/api/accounts/marco' --header 'Content-Type: application/json'
     """
     account = sql_manager.get(username)
     if account is None:
@@ -60,7 +61,8 @@ def get_account(username: str):
 def create_account(body: dict):
     """
     curl example to create an account:
-    curl -X 'POST' 'http://localhost:8000/api/accounts/create_account' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
+    sin nginx -> curl -X 'POST' 'http://localhost:8000/api/accounts/create_account' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
+    con nginx -> curl -X 'POST' 'http://localhost/api/accounts/create_account' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
     """
     username = body.get("username")
     password = body.get("password")
@@ -73,14 +75,15 @@ def create_account(body: dict):
         raise HTTPException(status_code=400, detail=f"Missing fields: {missing_fields}")
     if not sql_manager.insert(username, complete_name, email, profile_picture, is_provider):
         raise HTTPException(status_code=400, detail="Account already exists")
-    created_user = firebase_manager.create_user(email, password)
+    # created_user = firebase_manager.create_user(email, password)
     return {"status": "ok"}
 
 @app.delete("/{username}")
 def delete_account(username: str):
     """
     curl example to delete an account:
-    curl -X 'DELETE' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
+    sin nginx -> curl -X 'DELETE' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
+    con nginx -> curl -X 'DELETE' 'http://localhost/api/accounts/marco' --header 'Content-Type: application/json'
     """
     if not sql_manager.delete(username):
         raise HTTPException(status_code=404, detail="Account not found")
