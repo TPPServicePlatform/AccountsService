@@ -65,8 +65,8 @@ def get_account(username: str):
 def create_account(body: dict):
     """
     curl example to create an account:
-    sin nginx -> curl -X 'POST' 'http://localhost:8000/api/accounts/create_account' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
-    con nginx -> curl -X 'POST' 'http://localhost/api/accounts/create_account' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
+    sin nginx -> curl -X 'POST' 'http://localhost:8000/api/accounts/create' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
+    con nginx -> curl -X 'POST' 'http://localhost/api/accounts/create' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true}'
     """
     username = body.get("username")
     password = body.get("password")
