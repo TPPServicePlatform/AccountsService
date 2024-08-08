@@ -10,6 +10,7 @@ HOUR = 60 * 60
 MINUTE = 60
 MILLISECOND = 1_000
 
+
 class Accounts:
     """
     Account class that stores data in a db through sqlalchemy
@@ -32,7 +33,8 @@ class Accounts:
             self.accounts = Table(
                 'accounts',
                 metadata,
-                Column('username', String, primary_key=True),
+                Column('uid', String, primary_key=True, unique=True),
+                Column('username', String, unique=True),
                 Column('complete_name', String),
                 Column('email', String),
                 Column('profile_picture', String),
@@ -41,10 +43,11 @@ class Accounts:
             metadata.create_all(self.engine)
             session.commit()
 
-    def insert(self, username: str, complete_name: str, email: str, profile_picture: str, is_provider: bool) -> bool:
+    def insert(self, username: str, uid: str, complete_name: str, email: str, profile_picture: str, is_provider: bool) -> bool:
         with Session(self.engine) as session:
             try:
                 query = self.accounts.insert().values(
+                    uid=uid,
                     username=username,
                     complete_name=complete_name,
                     email=email,
@@ -71,7 +74,7 @@ class Accounts:
             if row is None:
                 return None
             return row._asdict()
-    
+
     def delete(self, username: str) -> bool:
         with Session(self.engine) as session:
             try:
@@ -83,4 +86,3 @@ class Accounts:
                 session.rollback()
                 return False
             return True
-    

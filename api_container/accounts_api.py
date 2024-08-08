@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from lib.utils import *
 import sys
+import firebase_admin
+from firebase_admin import credentials, auth
 time_start = time.time()
 
 logger.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s',
@@ -40,10 +42,12 @@ app.add_middleware(
 firebase_manager = FirebaseManager()
 sql_manager = Accounts()
 
-REQUIRED_CREATE_FIELDS = ["username", "password", "complete_name", "email", "profile_picture", "is_provider"]
+REQUIRED_CREATE_FIELDS = ["username", "password",
+                          "complete_name", "email", "profile_picture", "is_provider"]
 
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
+
 
 @app.get("/{username}")
 def get_account(username: str):
@@ -70,13 +74,28 @@ def create_account(body: dict):
     email = body.get("email")
     profile_picture = body.get("profile_picture")
     is_provider = body.get("is_provider")
-    if None in [username, complete_name, email, profile_picture, is_provider]:
-        missing_fields = [field for field in REQUIRED_CREATE_FIELDS if body.get(field) is None]
-        raise HTTPException(status_code=400, detail=f"Missing fields: {missing_fields}")
-    if not sql_manager.insert(username, complete_name, email, profile_picture, is_provider):
-        raise HTTPException(status_code=400, detail="Account already exists")
-    # created_user = firebase_manager.create_user(email, password)
-    return {"status": "ok"}
+    if None in [username, password, complete_name, email, profile_picture, is_provider]:
+        missing_fields = [
+            field for field in REQUIRED_CREATE_FIELDS if body.get(field) is None]
+        raise HTTPException(
+            status_code=400, detail=f"Missing fields: {missing_fields}")
+
+    try:
+        created_user = firebase_manager.create_user(email, password)
+        if created_user is None:
+            raise HTTPException(
+                status_code=400, detail="Account already exists")
+
+        if not sql_manager.insert(username, created_user.uid, complete_name, email, profile_picture, is_provider):
+            raise HTTPException(
+                status_code=400, detail="Account already exists")
+        return {"status": f"{created_user.uid}"}
+    except auth.EmailAlreadyExistsError:
+        HTTPException(
+            status_code=400, detail="Account already exists")
+    except auth.FirebaseError as e:
+        print('Error creating user:', e)
+
 
 @app.delete("/{username}")
 def delete_account(username: str):
