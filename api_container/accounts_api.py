@@ -87,14 +87,14 @@ def create_account(body: dict):
                 status_code=400, detail="Account already exists")
 
         if not sql_manager.insert(username, created_user.uid, complete_name, email, profile_picture, is_provider):
-            raise HTTPException(
-                status_code=400, detail="Account already exists")
-        return {"status": "ok", "user_id": f"{created_user.uid}"}
+            raise HTTPException(status_code=400, detail="Account already exists")
     except auth.EmailAlreadyExistsError:
-        HTTPException(
-            status_code=400, detail="Account already exists")
+        HTTPException(status_code=400, detail="Account already exists")
     except auth.FirebaseError as e:
-        print('Error creating user:', e)
+        # print('Error creating user:', e)
+        raise HTTPException(status_code=400, detail="Error creating user")
+        
+    return {"status": "ok", "user_id": f"{created_user.uid}"}
 
 
 @app.delete("/{username}")
