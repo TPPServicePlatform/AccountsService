@@ -57,7 +57,7 @@ def get_account(username: str):
         raise HTTPException(status_code=404, detail="Account not found")
     return account
 
-@app.post("/create_account")
+@app.post("/create")
 def create_account(body: dict):
     """
     curl example to create an account:
