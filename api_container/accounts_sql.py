@@ -1,10 +1,8 @@
-import time
 from typing import Optional, Union
-from sqlalchemy import create_engine, MetaData, Table, Column, String, Boolean
+from sqlalchemy import MetaData, Table, Column, String, Boolean
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from lib.utils import get_actual_time, get_engine
 import logging as logger
-import traceback
 from sqlalchemy.orm import Session
 
 HOUR = 60 * 60
