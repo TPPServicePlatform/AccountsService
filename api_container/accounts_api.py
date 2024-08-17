@@ -42,15 +42,17 @@ app.add_middleware(
 firebase_manager = FirebaseManager()
 sql_manager = Accounts()
 
-REQUIRED_CREATE_FIELDS = ["username", "password",
-                          "complete_name", "email", "profile_picture", "is_provider"]
+REQUIRED_CREATE_FIELDS = {"username", "password", "complete_name", "email", "is_provider", "birth_date"}
+OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
+VALID_UPDATE_FIELDS = {"complete_name", "email", "profile_picture", "description", "birth_date"}
 
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
 
+# TODO: (General) -> Create tests for each endpoint && add the required checks in each endpoint
 
 @app.get("/{username}")
-def get_account(username: str):
+def get(username: str):
     """
     curl example to get an account:
     sin nginx -> curl -X 'GET' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
@@ -61,32 +63,28 @@ def get_account(username: str):
         raise HTTPException(status_code=404, detail="Account not found")
     return account
 
-@app.post("/create")
-def create_account(body: dict):
+@app.post("/create") # TODO: Add the rest of the fields
+def create(body: dict):
     """
     curl example to create an account:
     sin nginx -> curl -X 'POST' 'http://localhost:8000/api/accounts/create' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true, "password": "holamundo"}'
     con nginx -> curl -X 'POST' 'http://localhost/api/accounts/create' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true, "password": "holamundo"}'
     """
-    username = body.get("username")
-    password = body.get("password")
-    complete_name = body.get("complete_name")
-    email = body.get("email")
-    profile_picture = body.get("profile_picture")
-    is_provider = body.get("is_provider")
-    if None in [username, password, complete_name, email, profile_picture, is_provider]:
-        missing_fields = [
-            field for field in REQUIRED_CREATE_FIELDS if body.get(field) is None]
-        raise HTTPException(
-            status_code=400, detail=f"Missing fields: {missing_fields}")
+    data = {key: value for key, value in body.items() if key in REQUIRED_CREATE_FIELDS or key in OPTIONAL_CREATE_FIELDS}
+    
+    if not all([field in data for field in REQUIRED_CREATE_FIELDS]):
+        missing_fields = REQUIRED_CREATE_FIELDS - set(data.keys())
+        raise HTTPException(status_code=400, detail=f"Missing fields: {missing_fields}")
+    
+    data.update({field: None for field in OPTIONAL_CREATE_FIELDS if field not in data})
 
     try:
-        created_user = firebase_manager.create_user(email, password)
+        created_user = firebase_manager.create_user(data["email"], data["password"])
         if created_user is None:
             raise HTTPException(
                 status_code=400, detail="Account already exists")
 
-        if not sql_manager.insert(username, created_user.uid, complete_name, email, profile_picture, is_provider):
+        if not sql_manager.insert(data["username"], created_user.uid, data["complete_name"], data["email"], data["profile_picture"], data["is_provider"], data["description"], data["birth_date"]):
             raise HTTPException(status_code=400, detail="Account already exists")
     except auth.EmailAlreadyExistsError:
         HTTPException(status_code=400, detail="Account already exists")
@@ -96,9 +94,8 @@ def create_account(body: dict):
         
     return {"status": "ok", "user_id": f"{created_user.uid}"}
 
-
 @app.delete("/{username}")
-def delete_account(username: str):
+def delete(username: str):
     """
     curl example to delete an account:
     sin nginx -> curl -X 'DELETE' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
@@ -108,6 +105,22 @@ def delete_account(username: str):
         raise HTTPException(status_code=404, detail="Account not found")
     return {"status": "ok"}
 
-# @app.put("/{username}")
-# def update_account(username: str, body: dict):
-#     return {"message": "This method is not implemented yet"}
+@app.put("/{username}") # TODO: Run and see how it works
+def update(username: str, body: dict):
+    update = {key: value for key, value in body.items() if key in VALID_UPDATE_FIELDS}
+    if "validated" in body and body["validated"]:
+        update["validated"] = True
+    
+    not_valid = {key for key in body if key not in update}
+    if not_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid fields: {', '.join(not_valid)}")
+
+    if not sql_manager.get(username):
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    if "password" in update:
+        firebase_manager.update_password(username, update["password"])
+    
+    if not sql_manager.update(username, update):
+        raise HTTPException(status_code=400, detail="Error updating account")
+    return {"status": "ok"}

@@ -1,4 +1,6 @@
+import datetime
 import os
+import time
 from typing import Optional, Union
 from sqlalchemy import create_engine
 
@@ -17,3 +19,6 @@ def get_engine() -> Optional[create_engine]:
         f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST')}:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}",
         echo=True
     )
+
+def get_actual_time() -> str:
+    return datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
