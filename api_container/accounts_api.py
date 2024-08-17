@@ -53,28 +53,18 @@ logger.info(f"Accounts API started in {starting_duration}")
 
 @app.get("/{username}")
 def get(username: str):
-    """
-    curl example to get an account:
-    sin nginx -> curl -X 'GET' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
-    con nginx -> curl -X 'GET' 'http://localhost/api/accounts/marco' --header 'Content-Type: application/json'
-    """
     account = sql_manager.get(username)
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
 
-@app.post("/create") # TODO: Add the rest of the fields
-def create(body: dict):
-    """
-    curl example to create an account:
-    sin nginx -> curl -X 'POST' 'http://localhost:8000/api/accounts/create' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true, "password": "holamundo"}'
-    con nginx -> curl -X 'POST' 'http://localhost/api/accounts/create' --header 'Content-Type: application/json' --data-raw '{"username": "marco", "complete_name": "Marco Polo", "email": "marco@polo.com", "profile_picture": "https://cdn.britannica.com/53/194553-050-88A5AC72/Marco-Polo-Italian-portrait-woodcut.jpg", "is_provider": true, "password": "holamundo"}'
-    """
+@app.post("/create")
+def create(body: dict): # TODO: Run and see how it works
     data = {key: value for key, value in body.items() if key in REQUIRED_CREATE_FIELDS or key in OPTIONAL_CREATE_FIELDS}
     
     if not all([field in data for field in REQUIRED_CREATE_FIELDS]):
         missing_fields = REQUIRED_CREATE_FIELDS - set(data.keys())
-        raise HTTPException(status_code=400, detail=f"Missing fields: {missing_fields}")
+        raise HTTPException(status_code=400, detail=f"Missing fields: {', '.join(missing_fields)}")
     
     data.update({field: None for field in OPTIONAL_CREATE_FIELDS if field not in data})
 
@@ -96,11 +86,6 @@ def create(body: dict):
 
 @app.delete("/{username}")
 def delete(username: str):
-    """
-    curl example to delete an account:
-    sin nginx -> curl -X 'DELETE' 'http://localhost:8000/api/accounts/marco' --header 'Content-Type: application/json'
-    con nginx -> curl -X 'DELETE' 'http://localhost/api/accounts/marco' --header 'Content-Type: application/json'
-    """
     if not sql_manager.delete(username):
         raise HTTPException(status_code=404, detail="Account not found")
     return {"status": "ok"}

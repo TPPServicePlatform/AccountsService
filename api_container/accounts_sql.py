@@ -54,11 +54,11 @@ class Accounts:
             metadata.create_all(self.engine)
             session.commit()
 
-    def insert(self, username: str, uid: str, complete_name: str, email: str, profile_picture: Optional[str], is_provider: bool, description: Optional[str], birth_date: str) -> bool:
+    def insert(self, username: str, uuid: str, complete_name: str, email: str, profile_picture: Optional[str], is_provider: bool, description: Optional[str], birth_date: str) -> bool:
         with Session(self.engine) as session:
             try:
                 query = self.accounts.insert().values(
-                    uid=uid,
+                    uuid=uuid,
                     username=username,
                     complete_name=complete_name,
                     email=email,
@@ -71,7 +71,6 @@ class Accounts:
                 )
                 session.execute(query)
                 session.commit()
-                return True
             except IntegrityError as e:
                 logger.error(f"IntegrityError: {e}")
                 session.rollback()
@@ -80,6 +79,7 @@ class Accounts:
                 logger.error(f"SQLAlchemyError: {e}")
                 session.rollback()
                 return False
+        return True
 
     def get(self, username: str) -> Optional[dict]:
         with self.engine.connect() as connection:
@@ -100,7 +100,7 @@ class Accounts:
                 logger.error(f"SQLAlchemyError: {e}")
                 session.rollback()
                 return False
-            return True
+        return True
     
     def update(self, username: str, data: dict) -> bool:
         with Session(self.engine) as session:
@@ -112,4 +112,4 @@ class Accounts:
                 logger.error(f"SQLAlchemyError: {e}")
                 session.rollback()
                 return False
-            return True
+        return True
