@@ -55,11 +55,11 @@ logger.info(f"Accounts API started in {starting_duration}")
 def get(username: str):
     account = sql_manager.get(username)
     if account is None:
-        raise HTTPException(status_code=404, detail="Account not found")
+        raise HTTPException(status_code=404, detail=f"Account '{username}' not found")
     return account
 
 @app.post("/create")
-def create(body: dict): # TODO: Run and see how it works
+def create(body: dict):
     data = {key: value for key, value in body.items() if key in REQUIRED_CREATE_FIELDS or key in OPTIONAL_CREATE_FIELDS}
     
     if not all([field in data for field in REQUIRED_CREATE_FIELDS]):
@@ -76,13 +76,14 @@ def create(body: dict): # TODO: Run and see how it works
 
         if not sql_manager.insert(data["username"], created_user.uid, data["complete_name"], data["email"], data["profile_picture"], data["is_provider"], data["description"], data["birth_date"]):
             raise HTTPException(status_code=400, detail="Account already exists")
+        
+        return {"status": "ok", "user_id": f"{created_user.uid}"}
     except auth.EmailAlreadyExistsError:
-        HTTPException(status_code=400, detail="Account already exists")
+        raise HTTPException(status_code=400, detail="Account already exists")
     except auth.FirebaseError as e:
         # print('Error creating user:', e)
         raise HTTPException(status_code=400, detail="Error creating user")
         
-    return {"status": "ok", "user_id": f"{created_user.uid}"}
 
 @app.delete("/{username}")
 def delete(username: str):
@@ -90,7 +91,7 @@ def delete(username: str):
         raise HTTPException(status_code=404, detail="Account not found")
     return {"status": "ok"}
 
-@app.put("/{username}") # TODO: Run and see how it works
+@app.put("/{username}")
 def update(username: str, body: dict):
     update = {key: value for key, value in body.items() if key in VALID_UPDATE_FIELDS}
     if "validated" in body and body["validated"]:
@@ -98,7 +99,7 @@ def update(username: str, body: dict):
     
     not_valid = {key for key in body if key not in update}
     if not_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid fields: {', '.join(not_valid)}")
+        raise HTTPException(status_code=400, detail=f"This fields does not exist or are not allowed to update: {', '.join(not_valid)}")
 
     if not sql_manager.get(username):
         raise HTTPException(status_code=404, detail="Account not found")
