@@ -44,8 +44,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# sql_manager = Accounts()
-# firebase_manager = FirebaseManager()
 if os.getenv('TESTING'):
     from unittest.mock import MagicMock
     firebase_manager = MagicMock()

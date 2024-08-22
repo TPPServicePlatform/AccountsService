@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from accounts_sql import Accounts
 
 # Run with the following command:
-# pytest AccountsService/api_container/tests/tests_accounts_sql.py
+# pytest AccountsService/api_container/tests/test_accounts_sql.py
 
 # Set the TESTING environment variable
 os.environ['TESTING'] = '1'

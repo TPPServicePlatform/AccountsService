@@ -6,7 +6,7 @@ import sys
 from sqlalchemy import MetaData
 
 # Run with the following command:
-# pytest AccountsService/api_container/tests/tests_accounts_api.py
+# pytest AccountsService/api_container/tests/test_accounts_api.py
 
 # Set the TESTING environment variable
 os.environ['TESTING'] = '1'
