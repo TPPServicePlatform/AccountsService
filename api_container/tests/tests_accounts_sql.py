@@ -1,4 +1,4 @@
-import unittest
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
@@ -8,85 +8,93 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
 from accounts_sql import Accounts
 
-class TestAccounts(unittest.TestCase):
+# Run with the following command:
+# pytest AccountsService/api_container/tests/tests_accounts_sql.py
 
-    @classmethod
-    def setUpClass(cls):
-        cls.engine = create_engine('sqlite:///:memory:')
-        cls.Session = sessionmaker(bind=cls.engine)
-        cls.accounts = Accounts(engine=cls.engine)  # Inject the test engine
+# Set the TESTING environment variable
+os.environ['TESTING'] = '1'
 
-    def setUp(self):
-        self.session = self.Session()
+# Set a default DATABASE_URL for testing
+os.environ['DATABASE_URL'] = 'sqlite:///test.db'
 
-    def tearDown(self):
-        self.session.execute(self.accounts.accounts.delete())
-        self.session.commit()
-        self.session.close()
+@pytest.fixture(scope='module')
+def engine():
+    engine = create_engine('sqlite:///:memory:')
+    yield engine
+    engine.dispose()
 
-    def test_insert(self):
-        result = self.accounts.insert(
-            username="testuser",
-            uuid="1234",
-            complete_name="Test User",
-            email="testuser@example.com",
-            profile_picture=None,
-            is_provider=False,
-            description="Test description",
-            birth_date="2000-01-01"
-        )
-        self.assertTrue(result)
+@pytest.fixture(scope='module')
+def accounts(engine):
+    return Accounts(engine=engine)
 
-    def test_get(self):
-        self.accounts.insert(
-            username="testuser",
-            uuid="1234",
-            complete_name="Test User",
-            email="testuser@example.com",
-            profile_picture=None,
-            is_provider=False,
-            description="Test description",
-            birth_date="2000-01-01"
-        )
-        account = self.accounts.get("testuser")
-        self.assertIsNotNone(account)
-        self.assertEqual(account['username'], "testuser")
+@pytest.fixture(scope='function')
+def session(engine, accounts):
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.execute(accounts.accounts.delete())
+    session.commit()
+    session.close()
 
-    def test_delete(self):
-        self.accounts.insert(
-            username="testuser",
-            uuid="1234",
-            complete_name="Test User",
-            email="testuser@example.com",
-            profile_picture=None,
-            is_provider=False,
-            description="Test description",
-            birth_date="2000-01-01"
-        )
-        result = self.accounts.delete("testuser")
-        self.assertTrue(result)
-        account = self.accounts.get("testuser")
-        self.assertIsNone(account)
+def test_insert(accounts):
+    result = accounts.insert(
+        username="testuser",
+        uuid="1234",
+        complete_name="Test User",
+        email="testuser@example.com",
+        profile_picture=None,
+        is_provider=False,
+        description="Test description",
+        birth_date="2000-01-01"
+    )
+    assert result
 
-    def test_update(self):
-        self.accounts.insert(
-            username="testuser",
-            uuid="1234",
-            complete_name="Test User",
-            email="testuser@example.com",
-            profile_picture=None,
-            is_provider=False,
-            description="Test description",
-            birth_date="2000-01-01"
-        )
-        result = self.accounts.update("testuser", {"complete_name": "Updated User"})
-        self.assertTrue(result)
-        account = self.accounts.get("testuser")
-        self.assertEqual(account['complete_name'], "Updated User")
+def test_get(accounts):
+    accounts.insert(
+        username="testuser",
+        uuid="1234",
+        complete_name="Test User",
+        email="testuser@example.com",
+        profile_picture=None,
+        is_provider=False,
+        description="Test description",
+        birth_date="2000-01-01"
+    )
+    account = accounts.get("testuser")
+    assert account is not None
+    assert account['username'] == "testuser"
+    assert account['uuid'] == "1234"
+    assert account['complete_name'] == "Test User"
+    assert account['email'] == "testuser@example.com"
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.engine.dispose()
+def test_delete(accounts):
+    accounts.insert(
+        username="testuser",
+        uuid="1234",
+        complete_name="Test User",
+        email="testuser@example.com",
+        profile_picture=None,
+        is_provider=False,
+        description="Test description",
+        birth_date="2000-01-01"
+    )
+    result = accounts.delete("testuser")
+    assert result
+    account = accounts.get("testuser")
+    assert account is None
 
-if __name__ == '__main__':
-    unittest.main()
+def test_update(accounts):
+    accounts.insert(
+        username="testuser",
+        uuid="1234",
+        complete_name="Test User",
+        email="testuser@example.com",
+        profile_picture=None,
+        is_provider=False,
+        description="Test description",
+        birth_date="2000-01-01"
+    )
+    result = accounts.update("testuser", {"complete_name": "Updated User"})
+    assert result
+    account = accounts.get("testuser")
+    assert account['complete_name'] == "Updated User"

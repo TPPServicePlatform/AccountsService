@@ -20,5 +20,9 @@ def get_engine() -> Optional[create_engine]:
         echo=True
     )
 
+def get_test_engine():
+    database_url = os.getenv('DATABASE_URL', 'sqlite:///test.db')  # Default to a SQLite database for testing
+    return create_engine(database_url)
+
 def get_actual_time() -> str:
     return datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')

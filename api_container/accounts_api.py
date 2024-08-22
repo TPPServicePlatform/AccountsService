@@ -5,11 +5,15 @@ from firebase_manager import FirebaseManager
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from lib.utils import *
 import sys
 import firebase_admin
 from firebase_admin.exceptions import FirebaseError
 from firebase_admin import credentials, auth
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
+from lib.utils import time_to_string, get_test_engine
+
 time_start = time.time()
 
 logger.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s',
@@ -40,8 +44,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-firebase_manager = FirebaseManager()
-sql_manager = Accounts()
+# sql_manager = Accounts()
+# firebase_manager = FirebaseManager()
+if os.getenv('TESTING'):
+    from unittest.mock import MagicMock
+    firebase_manager = MagicMock()
+    test_engine = get_test_engine()
+    sql_manager = Accounts(engine=test_engine)
+else:
+    firebase_manager = FirebaseManager()
+    sql_manager = Accounts()
 
 REQUIRED_CREATE_FIELDS = {"username", "password", "complete_name", "email", "is_provider", "birth_date"}
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}

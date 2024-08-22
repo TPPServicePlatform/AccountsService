@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import os
 import sys
 import logging as logger
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
 from lib.utils import get_actual_time, get_engine
@@ -35,6 +35,9 @@ class Accounts:
         self.engine = engine or get_engine()
         self.create_table()
         logger.getLogger('sqlalchemy.engine').setLevel(logger.DEBUG)
+        self.metadata = MetaData()
+        self.metadata.bind = self.engine
+        self.Session = sessionmaker(bind=self.engine)
 
     def create_table(self):
         with Session(self.engine) as session:
@@ -115,3 +118,8 @@ class Accounts:
                 session.rollback()
                 return False
         return True
+
+    def clear(self):
+        self.metadata.drop_all()
+        self.metadata.create_all()
+        
