@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from lib.utils import *
 import sys
 import firebase_admin
+from firebase_admin.exceptions import FirebaseError
 from firebase_admin import credentials, auth
 time_start = time.time()
 

@@ -1,9 +1,13 @@
 from typing import Optional, Union
 from sqlalchemy import MetaData, Table, Column, String, Boolean
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from lib.utils import get_actual_time, get_engine
+import os
+import sys
 import logging as logger
 from sqlalchemy.orm import Session
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
+from lib.utils import get_actual_time, get_engine
 
 HOUR = 60 * 60
 MINUTE = 60
@@ -27,8 +31,8 @@ class Accounts:
     - validated: boolean
     """
 
-    def __init__(self):
-        self.engine = get_engine()
+    def __init__(self, engine=None):
+        self.engine = engine or get_engine()
         self.create_table()
         logger.getLogger('sqlalchemy.engine').setLevel(logger.DEBUG)
 
