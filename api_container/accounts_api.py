@@ -1,5 +1,6 @@
+from api_container.sql.favourites_folder_user_sql import FavouritesFolderUser
 from lib.utils import time_to_string, get_test_engine
-from accounts_sql import Accounts
+from api_container.sql.accounts_sql import Accounts
 import logging as logger
 import time
 from firebase_manager import FirebaseManager
@@ -50,6 +51,11 @@ if os.getenv('TESTING'):
     firebase_manager = MagicMock()
     test_engine = get_test_engine()
     sql_manager = Accounts(engine=test_engine)
+    sql_favourite_folder_manager = FavouritesFolderUser(engine=test_engine)
+    sql_favourites_provider_folder = ProviderFavouriteFolder(
+        engine=test_engine)
+    sql_favourites_services_folder = ServicesFavouriteFolder(
+        engine=test_engine)
 else:
     firebase_manager = FirebaseManager()
     sql_manager = Accounts()
@@ -60,6 +66,9 @@ OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
 VALID_UPDATE_FIELDS = {"complete_name", "email",
                        "profile_picture", "description", "birth_date"}
 REQUIREDPASSWORDRESET_FIELDS = {"email"}
+REQUIRED_CREATE_FOLDER_FIELDS = {"userid"}
+REQUIRED_ADD_PROVIDER_FIELDS = {"provider_id"}
+REQUIRED_ADD_SERVICE_FIELDS = {"service_id"}
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
 
@@ -98,8 +107,8 @@ def create(body: dict):
         if not sql_manager.insert(data["username"], created_user.uid, data["complete_name"], data["email"], data["profile_picture"], data["is_provider"], data["description"], data["birth_date"]):
             raise HTTPException(
                 status_code=400, detail="Account already exists")
+        return JSONResponse(status_code=200, content={created_user.uid})
 
-        return {"status": "ok", "user_id": f"{created_user.uid}"}
     except auth.EmailAlreadyExistsError:
         raise HTTPException(status_code=400, detail="Account already exists")
     except auth.FirebaseError as e:
@@ -111,7 +120,7 @@ def create(body: dict):
 def delete(username: str):
     if not sql_manager.delete(username):
         raise HTTPException(status_code=404, detail="Account not found")
-    return {"status": "ok"}
+    return JSONResponse(status_code=200)
 
 
 @app.put("/{username}")
@@ -134,7 +143,7 @@ def update(username: str, body: dict):
 
     if not sql_manager.update(username, update):
         raise HTTPException(status_code=400, detail="Error updating account")
-    return {"status": "ok"}
+    return JSONResponse(status_code=200)
 
 
 @app.post("/passwordreset")
@@ -146,4 +155,78 @@ def password_reset(body: dict):
         raise HTTPException(status_code=404, detail="Account not found")
 
     firebase_manager.password_reset(data["email"])
-    return {"status": "ok"}
+    return JSONResponse(status_code=200)
+
+
+@app.post("/{uid}/favorites/create")
+def create_favorite(uid: str, body: dict):
+    data = {key: value for key, value in body.items(
+    ) if key in REQUIREDPASSWORDRESET_FIELDS}
+
+    if not sql_manager.get(uid):
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    result = sql_favourite_folder_manager.create_table()
+    if not result:
+        raise HTTPException(status_code=400, detail="Error creating favorite")
+    favouriteFolderId = sql_favourite_folder_manager.insert(uid)
+    if not favouriteFolderId:
+        raise HTTPException(status_code=400, detail="Error inserting favorite")
+
+    return JSONResponse(status_code=200, content={favouriteFolderId})
+
+
+@app.get("/{uid}/favorites/{folderid}/providers")
+def get_provider_favourite_folder(uid: str, folderid: str):
+    if not sql_manager.get(uid):
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    result = sql_favourites_provider_folder.get(folderid)
+    if not result:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return JSONResponse(status_code=200, content={result})
+
+
+@app.post("/{uid}/favorites/{folderid}/providers")
+def add_provider_favourite_folder(uid: str, folderid: str, body: dict):
+    data = {key: value for key, value in body.items(
+    ) if key in REQUIRED_ADD_PROVIDER_FIELDS}
+
+    if not sql_manager.get(uid):
+        raise HTTPException(status_code=404, detail="Account not found")
+    if not sql_favourite_folder_manager.get_user_folder(uid, folderid):
+        raise HTTPException(status_code=404, detail="Folder not found")
+    provider_id = data["provider_id"]
+    result = sql_favourites_provider_folder.insert(folderid, provider_id)
+    if not result:
+        raise HTTPException(status_code=400, detail="Error inserting provider")
+
+    return JSONResponse(status_code=200)
+
+
+@app.get("/{uid}/favorites/{folderid}/providers")
+def get_service_favourite_folder(uid: str, folderid: str):
+    if not sql_manager.get(uid):
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    result = sql_favourites_services_folder.get(folderid)
+    if not result:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return JSONResponse(status_code=200, content={result})
+
+
+@app.post("/{uid}/favorites/{folderid}/services")
+def add_services_favourite_folder(uid: str, folderid: str, body: dict):
+    data = {key: value for key, value in body.items(
+    ) if key in REQUIRED_ADD_SERVICE_FIELDS}
+
+    if not sql_manager.get(uid):
+        raise HTTPException(status_code=404, detail="Account not found")
+    if not sql_favourite_folder_manager.get_user_folder(uid, folderid):
+        raise HTTPException(status_code=404, detail="Folder not found")
+    service_id = data["service_id"]
+    result = sql_favourites_services_folder.insert(folderid, service_id)
+    if not result:
+        raise HTTPException(status_code=400, detail="Error inserting provider")
+
+    return JSONResponse(status_code=200)
