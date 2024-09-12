@@ -94,6 +94,15 @@ class Accounts:
             if row is None:
                 return None
             return row._asdict()
+    
+    def getemail(self, email: str) -> Optional[dict]:
+        with self.engine.connect() as connection:
+            query = self.accounts.select().where(self.accounts.c.email == email)
+            result = connection.execute(query)
+            row = result.fetchone()
+            if row is None:
+                return None
+            return row._asdict()
 
     def delete(self, username: str) -> bool:
         with Session(self.engine) as session:
