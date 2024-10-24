@@ -1,0 +1,17 @@
+name: "accounts-service"
+
+services:
+    
+  accounts-api:
+    build:
+      context: ./
+      dockerfile: ./api_container/Dockerfile
+    ports:
+      - "${EXTERNAL_ACCOUNTS_API_PORT}:${ACCOUNTS_API_PORT}"
+    restart: unless-stopped
+    networks:
+      - my-services-network
+
+networks:
+  my-services-network:
+    external: true
