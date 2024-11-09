@@ -4,3 +4,5 @@ uvicorn
 requests
 SQLAlchemy
 firebase-admin
+pymongo[srv]
+mongomock
