@@ -35,3 +35,10 @@ def get_mongo_client() -> MongoClient:
 
 def get_actual_time() -> str:
     return datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+
+def is_valid_date(date: str):
+    try:
+        datetime.datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return False
+    return True

@@ -149,7 +149,7 @@ class Chats:
             return 0
         return result[0]['count']
     
-    def search(self, limit: int, offset: int, provider_id: str = None, client_id: str = None, msg_min_date: int = None, msg_max_date: int = None, keywords: List[str] = None) -> Optional[List[Dict]]:
+    def search(self, limit: int, offset: int, provider_id: str = None, client_id: str = None, msg_min_date: str = None, msg_max_date: str = None, keywords: List[str] = None) -> Optional[List[Dict]]:
         pipeline = []
 
         if provider_id:
