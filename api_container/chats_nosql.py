@@ -108,7 +108,8 @@ class Chats:
         return str_uuid
         
     def _chat_exists(self, provider_id: str, client_id: str) -> Optional[str]:
-        return self.collection.find_one({'provider_id': provider_id, 'client_id': client_id}) or None
+        doc = self.collection.find_one({'provider_id': provider_id, 'client_id': client_id})
+        return doc['uuid'] if doc else None
     
     def delete(self, uuid: str) -> bool:
         result = self.collection.delete_one({'uuid': uuid})
@@ -129,10 +130,10 @@ class Chats:
                 'messages': {'$push': '$messages'}
             }}
         ])
-        result = list(messages)
-        if not result:
+        results = list(messages)
+        if not results:
             return None
-        return result[0]['messages']
+        return results[0]['messages']
     
     def count_messages(self, provider_id: str, client_id: str) -> int:
         chat_id = self._chat_exists(provider_id, client_id)
@@ -157,7 +158,7 @@ class Chats:
         if client_id:
             pipeline.append({'$match': {'client_id': client_id}})
 
-        if any[msg_min_date, msg_max_date]:
+        if any([msg_min_date, msg_max_date]):
             match = {}
             if msg_min_date:
                 match['$gte'] = msg_min_date
@@ -172,9 +173,10 @@ class Chats:
         pipeline.append({'$limit': limit})
 
         results = [dict(result) for result in self.collection.aggregate(pipeline)]
-
-        for result in results:
-            if '_id' in result:
-                result['_id'] = str(result['_id'])
-        return results or None
+        
+        messages = [
+            {**message, 'chat_info': {'id': chat['uuid'], 'provider_id': chat['provider_id'], 'client_id': chat['client_id']}}
+            for chat in results for message in chat['messages']
+        ]
+        return sorted(messages, key=lambda x: x['sent_at'], reverse=True) or None
 
