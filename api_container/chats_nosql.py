@@ -148,8 +148,8 @@ class Chats:
         if not result:
             return 0
         return result[0]['count']
-    
-    def search(self, limit: int, offset: int, provider_id: str = None, client_id: str = None, msg_min_date: str = None, msg_max_date: str = None, keywords: List[str] = None) -> Optional[List[Dict]]:
+
+    def search(self, limit: int, offset: int, provider_id: str = None, client_id: str = None, sender_id: str = None, msg_min_date: str = None, msg_max_date: str = None, keywords: List[str] = None) -> Optional[List[Dict]]:
         pipeline = []
 
         if provider_id:
@@ -157,26 +157,41 @@ class Chats:
 
         if client_id:
             pipeline.append({'$match': {'client_id': client_id}})
+        
+        pipeline.append({'$unwind': '$messages'})
+        pipeline.append({
+            '$addFields': {
+                'messages.chat_info': {
+                    'id': '$uuid',
+                    'provider_id': '$provider_id',
+                    'client_id': '$client_id'
+                }
+            }
+        })
+        pipeline.append({
+            '$replaceRoot': {
+                'newRoot': '$messages'
+            }
+        })
 
+        if sender_id:
+            pipeline.append({'$match': {'sender_id': sender_id}})
+        
         if any([msg_min_date, msg_max_date]):
             match = {}
             if msg_min_date:
                 match['$gte'] = msg_min_date
             if msg_max_date:
                 match['$lte'] = msg_max_date
-            pipeline.append({'$match': {'messages.sent_at': match}})
+            pipeline.append({'$match': {'sent_at': match}})
 
         if keywords and len(keywords) > 0:
-            pipeline.append({'$match': {'messages.message': {'$in': keywords}}})
+            pipeline.append({'$match': {'message': {'$in': keywords}}})
+
+        pipeline.append({'$sort': {'messages.sent_at': ASCENDING}})
 
         pipeline.append({'$skip': offset})
         pipeline.append({'$limit': limit})
 
-        results = [dict(result) for result in self.collection.aggregate(pipeline)]
-        
-        messages = [
-            {**message, 'chat_info': {'id': chat['uuid'], 'provider_id': chat['provider_id'], 'client_id': chat['client_id']}}
-            for chat in results for message in chat['messages']
-        ]
-        return sorted(messages, key=lambda x: x['sent_at'], reverse=True) or None
+        return [dict(result) for result in self.collection.aggregate(pipeline)] or None
 

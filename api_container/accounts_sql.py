@@ -86,9 +86,18 @@ class Accounts:
                 return False
         return True
 
-    def get(self, username: str) -> Optional[dict]:
+    def get_by_username(self, username: str) -> Optional[dict]:
         with self.engine.connect() as connection:
             query = self.accounts.select().where(self.accounts.c.username == username)
+            result = connection.execute(query)
+            row = result.fetchone()
+            if row is None:
+                return None
+            return row._asdict()
+    
+    def get(self, id: str) -> Optional[dict]:
+        with self.engine.connect() as connection:
+            query = self.accounts.select().where(self.accounts.c.uuid == id)
             result = connection.execute(query)
             row = result.fetchone()
             if row is None:
