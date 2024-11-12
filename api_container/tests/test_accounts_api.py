@@ -1,6 +1,6 @@
+from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 import os
 import sys
 from sqlalchemy import MetaData
@@ -10,36 +10,44 @@ from sqlalchemy import MetaData
 
 # Set the TESTING environment variable
 os.environ['TESTING'] = '1'
+os.environ['MONGOMOCK'] = '1'
 
 # Set a default DATABASE_URL for testing
 os.environ['DATABASE_URL'] = 'sqlite:///test.db'
+
+# Set a default MONGO_TEST_DB for testing
+os.environ['MONGO_TEST_DB'] = 'test_db'
 
 # Add the necessary paths to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
 
-from accounts_api import app, sql_manager, firebase_manager
+from accounts_api import app, accounts_manager, firebase_manager, chats_manager
 
-client = TestClient(app)
+# client = TestClient(app)
 
-@pytest.fixture(autouse=True)
-def setup_and_teardown():
+@pytest.fixture(scope='function')
+def test_app():
+    client = TestClient(app)
+
     # Setup code: runs before each test
     metadata = MetaData()
-    metadata.reflect(bind=sql_manager.engine)
-    metadata.drop_all(bind=sql_manager.engine)
-    metadata.create_all(bind=sql_manager.engine)
-    yield
+    metadata.reflect(bind=accounts_manager.engine)
+    metadata.drop_all(bind=accounts_manager.engine)
+    metadata.create_all(bind=accounts_manager.engine)
+    chats_manager.collection.drop()
+    yield client
     # Teardown code: runs after each test
-    metadata.reflect(bind=sql_manager.engine)
-    metadata.drop_all(bind=sql_manager.engine)
-    metadata.create_all(bind=sql_manager.engine)
+    metadata.reflect(bind=accounts_manager.engine)
+    metadata.drop_all(bind=accounts_manager.engine)
+    metadata.create_all(bind=accounts_manager.engine)
+    chats_manager.collection.drop()
 
-def test_get_account():
+def test_get_account(test_app, mocker):
     # Mock the database response
-    sql_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
     
-    response = client.get("/testuser")
+    response = test_app.get("/get/testuser")
     assert response.status_code == 200
     
     response_json = response.json()
@@ -53,7 +61,7 @@ def test_get_account():
     assert response_json["birth_date"] == "2000-01-01"
 
 @pytest.mark.usefixtures("mocker")
-def test_create_account(mocker):
+def test_create_account(test_app, mocker):
     # Mock FirebaseManager.create_user
     mocker.patch.object(firebase_manager, 'create_user', return_value=type('obj', (object,), {'uid': 'uid123'}))
     
@@ -65,30 +73,151 @@ def test_create_account(mocker):
         "is_provider": False,
         "birth_date": "2000-01-01"
     }
-    response = client.post("/create", json=body)
+    response = test_app.post("/create", json=body)
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "user_id": "uid123"}
 
-def test_delete_account():
+def test_delete_account(test_app, mocker):
     # Mock the database response
-    sql_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
     
-    response = client.delete("/testuser")
+    response = test_app.delete("/delete/testuser")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
-def test_update_account():
+def test_update_account(test_app, mocker):
     # Mock the database response
-    sql_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
     
     body = {
         "complete_name": "Updated User",
         "email": "updated@example.com"
     }
-    response = client.put("/testuser", json=body)
+    response = test_app.put("/update/testuser", json=body)
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
     
-    updated_account = sql_manager.get("testuser")
+    updated_account = accounts_manager.get_by_username("testuser")
     assert updated_account["complete_name"] == "Updated User"
     assert updated_account["email"] == "updated@example.com"
+
+def test_send_message(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("testuser2", "uid456", "Test User 2", "test2@example.com", None, True, None, "2000-01-01")
+
+    body = {
+        "provider_id": "uid123",
+        "client_id": "uid456",
+        "message_content": "Hello, this is a test message."
+    }
+    response = test_app.put("/chats/uid123", json=body)
+    assert response.status_code == 200
+    response_json = response.json()
+    assert response_json["status"] == "ok"
+    assert response_json["chat_id"] is not None
+
+    messages = chats_manager.get_messages("uid123", "uid456", 10, 0)
+    assert len(messages) == 1
+
+def test_get_chat(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("testuser", "uid123", "Test User", "test@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("testuser2", "uid456", "Test User 2", "test2@example.com", None, True, None, "2000-01-01")
+
+    for i in range(5):
+        body = {
+            "provider_id": "uid123",
+            "client_id": "uid456",
+            "message_content": "Hello, this is a test message. The number is " + str(i)
+        }
+        test_app.put("/chats/uid456", json=body)
+
+    response = test_app.get("/chats/uid123/uid456", params={"limit": 5, "offset": 0})
+    assert response.status_code == 200
+    messages = response.json()["messages"]
+    assert len(messages) == 5
+
+    for i in range(5):
+        assert messages[i]["message"] == "Hello, this is a test message. The number is " + str(i)
+
+def test_search_messages(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("testuser0", "uid0", "Test User 0", "Test User 0", None, True, None, "2000-01-01")
+    for i in range(1, 5):
+        accounts_manager.insert("testuser" + str(i), "uid" + str(i), "Test User " + str(i), "test" + str(i) + "@example.com", None, False, None, "2000-01-01")
+
+    for i in range(1, 5):
+        body = {
+            "provider_id": "uid0",
+            "client_id": "uid" + str(i),
+            "message_content": "Hello, this is a test message. The number is " + str(i)
+        }
+        assert test_app.put("/chats/uid0", json=body).status_code == 200
+        
+        body = {
+            "provider_id": "uid0",
+            "client_id": "uid" + str(i),
+            "message_content": "Hello, this is a test message. The number is -" + str(i)
+        }
+        assert test_app.put("/chats/uid" + str(i), json=body).status_code == 200
+
+    response = test_app.get("/chats/search", params={"limit": 100, "offset": 0})
+    assert response.status_code == 200
+    messages = response.json()["messages"]
+    assert len(messages) == 8
+
+def test_search_messages_client1(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("testuser0", "uid0", "Test User 0", "Test User 0", None, True, None, "2000-01-01")
+    for i in range(1, 5):
+        accounts_manager.insert("testuser" + str(i), "uid" + str(i), "Test User " + str(i), "test" + str(i) + "@example.com", None, False, None, "2000-01-01")
+
+    for i in range(1, 5):
+        body = {
+            "provider_id": "uid0",
+            "client_id": "uid" + str(i),
+            "message_content": "Hello, this is a test message. The number is " + str(i)
+        }
+        assert test_app.put("/chats/uid0", json=body).status_code == 200
+        
+        body = {
+            "provider_id": "uid0",
+            "client_id": "uid" + str(i),
+            "message_content": "Hello, this is a test message. The number is -" + str(i)
+        }
+        assert test_app.put("/chats/uid" + str(i), json=body).status_code == 200
+    
+    response = test_app.get("/chats/search", params={"client_id": "uid1", "limit": 100, "offset": 0})
+    assert response.status_code == 200
+    messages = response.json()["messages"]
+    assert len(messages) == 2
+
+def test_search_messages_sent_by_provider(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("testuser0", "uid0", "Test User 0", "Test User 0", None, True, None, "2000-01-01")
+    for i in range(1, 5):
+        accounts_manager.insert("testuser" + str(i), "uid" + str(i), "Test User " + str(i), "test" + str(i) + "@example.com", None, False, None, "2000-01-01")
+
+    for i in range(1, 5):
+        body = {
+            "provider_id": "uid0",
+            "client_id": "uid" + str(i),
+            "message_content": "Hello, this is a test message. The number is " + str(i)
+        }
+        assert test_app.put("/chats/uid0", json=body).status_code == 200
+        
+        body = {
+            "provider_id": "uid0",
+            "client_id": "uid" + str(i),
+            "message_content": "Hello, this is a test message. The number is -" + str(i)
+        }
+        assert test_app.put("/chats/uid" + str(i), json=body).status_code == 200
+    
+    response = test_app.get("/chats/search", params={"sender_id": "uid0", "limit": 100, "offset": 0})
+    assert response.status_code == 200
+    messages = response.json()["messages"]
+    assert len(messages) == 4
+    assert all([message["sender_id"] == "uid0" for message in messages])
+
+
