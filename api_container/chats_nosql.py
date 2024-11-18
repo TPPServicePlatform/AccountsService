@@ -186,7 +186,7 @@ class Chats:
             pipeline.append({'$match': {'sent_at': match}})
 
         if keywords and len(keywords) > 0:
-            pipeline.append({'$match': {'message': {'$in': keywords}}})
+            pipeline.append({'$match': {'message': {'$regex': '|'.join(keywords), '$options': 'i'}}})
 
         pipeline.append({'$sort': {'messages.sent_at': ASCENDING}})
 
