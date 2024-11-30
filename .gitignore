@@ -1,6 +1,9 @@
 # Accounts Service specific files
 /api_container/credentials_firebase.json
 
+# Imported libraries
+/imported_lib/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
