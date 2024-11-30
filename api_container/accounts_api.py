@@ -15,6 +15,7 @@ import sys
 import firebase_admin
 from firebase_admin.exceptions import FirebaseError
 from firebase_admin import credentials, auth
+from imported_lib.ServicesService import ServicesLib
 import os
 
 sys.path.append(os.path.abspath(os.path.join(
@@ -58,10 +59,12 @@ if os.getenv('TESTING'):
 
     client = mongomock.MongoClient()
     chats_manager = Chats(test_client=client)
+    services_lib = ServicesLib(test_client=client)
 else:
     firebase_manager = FirebaseManager()
     accounts_manager = Accounts()
     chats_manager = Chats()
+    services_lib = ServicesLib()
 
 REQUIRED_CREATE_FIELDS = {"username", "password",
                           "complete_name", "email", "is_provider", "birth_date"}
@@ -70,6 +73,14 @@ VALID_UPDATE_FIELDS = {"complete_name", "email",
                        "profile_picture", "description", "birth_date"}
 REQUIREDPASSWORDRESET_FIELDS = {"email"}
 REQUIRED_SEND_MESSAGE_FIELDS = {"provider_id", "client_id", "message_content"}
+PROVIDER_RANKINGS = {5: "great", 4: "good", 3: "just_ok", 2: "neutral", 1: "not_recommended", 0: "newbie"}
+PROVIDER_RANKINGS_METRICS = {5: {"min_avg_rating": 0.9, "min_finished_percent": 0.8}, \
+                                4: {"min_avg_rating": 0.75, "min_finished_percent": 0.7}, \
+                                3: {"min_avg_rating": 0.6, "min_finished_percent": 0.6}, \
+                                2: {"min_avg_rating": 0.4, "min_finished_percent": 0.0}, \
+                                1: {"min_avg_rating": 0.0, "min_finished_percent": 0.0}}
+MIN_FINISHED_RENTALS = 100
+MAX_RATING = 5
 
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
@@ -230,3 +241,32 @@ def search_messages(
     if messages is None:
         raise HTTPException(status_code=404, detail="No messages found")
     return {"status": "ok", "messages": messages}
+
+@app.get("/rankings/{provider_id}")
+def get_rankings(provider_id: str):
+    account = accounts_manager.get(provider_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not account["is_provider"]:
+        raise HTTPException(status_code=400, detail="Account is not a provider")
+    
+    total_rentals = services_lib.total_rentals(provider_id)
+    finished_rentals = services_lib.finished_rentals(provider_id)
+    finished_percent = finished_rentals / total_rentals if total_rentals > 0 else 0
+    rating_metrics = services_lib.avg_rating(provider_id)
+
+    avg_rating = rating_metrics["avg_rating"] if rating_metrics else None
+    num_ratings = rating_metrics["num_ratings"] if rating_metrics else 0
+
+    metrics = {"total_rentals": total_rentals, "finished_rentals": finished_rentals, "finished_percent": finished_percent, "avg_rating": avg_rating, "num_ratings": num_ratings}
+
+    if finished_rentals < MIN_FINISHED_RENTALS or avg_rating is None:
+        return {"status": "ok", "rank": PROVIDER_RANKINGS[0], "metrics": metrics}
+    
+    for i in range(MAX_RATING, -1, -1):
+        min_avg_rating = PROVIDER_RANKINGS_METRICS[i]["min_avg_rating"] * MAX_RATING
+        min_finished_percent = PROVIDER_RANKINGS_METRICS[i]["min_finished_percent"]
+        if avg_rating >= min_avg_rating and finished_percent >= min_finished_percent:
+            return {"status": "ok", "rank": PROVIDER_RANKINGS[i], "metrics": metrics}
+    
+    
