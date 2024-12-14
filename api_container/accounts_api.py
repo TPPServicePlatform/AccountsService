@@ -15,7 +15,7 @@ import sys
 import firebase_admin
 from firebase_admin.exceptions import FirebaseError
 from firebase_admin import credentials, auth
-from imported_lib.ServicesService import ServicesLib
+from imported_lib.ServicesService.services_lib import ServicesLib
 import os
 
 sys.path.append(os.path.abspath(os.path.join(
