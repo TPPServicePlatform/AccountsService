@@ -3,6 +3,7 @@ WORKDIR /code/
 
 COPY ./api_container/ /code/
 COPY ./lib/ /code/lib/
+COPY ./imported_lib/ /code/imported_lib/
 
 RUN cat /code/lib/.env >> /code/.env
 RUN cat /code/lib/requirements.txt >> /code/requirements.txt
