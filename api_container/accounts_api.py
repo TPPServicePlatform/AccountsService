@@ -3,6 +3,7 @@ from typing import Optional
 
 import mongomock
 from lib.utils import is_valid_date, time_to_string, get_test_engine
+from lib.rev2 import Rev2Graph
 from accounts_sql import Accounts
 from chats_nosql import Chats
 import logging as logger
@@ -268,5 +269,26 @@ def get_rankings(provider_id: str):
         min_finished_percent = PROVIDER_RANKINGS_METRICS[i]["min_finished_percent"]
         if avg_rating >= min_avg_rating and finished_percent >= min_finished_percent:
             return {"status": "ok", "rank": PROVIDER_RANKINGS[i], "metrics": metrics}
-    
+
+@app.get("/fairness")
+def get_fairness():
+    edge_list = services_lib.get_recent_ratings(max_delta_days=360)
+    # edge_list = _mocked_list()
+    if not edge_list:
+        raise HTTPException(status_code=404, detail="No ratings found")
+    graph = Rev2Graph(edge_list)
+    results = graph.get_results()
+    return {"status": "ok", "results": results}
+
+# def _mocked_list():
+#     edge_list = [] # list of tuples (user, service_id, score)
+
+#     items = {"itemA": 5, "itemB": 4, "itemC": 4.5, "itemD": 5}
+#     users = {"userA", "userB", "userC", "userD"}
+#     evil_user = "evilUser"
+#     for item, score in items.items():
+#         for user in users:
+#             edge_list.append((user, item, score))
+#         edge_list.append((evil_user, item, -1000))
+#     return edge_list
     

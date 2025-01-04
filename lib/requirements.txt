@@ -1,2 +1,5 @@
 psycopg2-binary
 SQLAlchemy
+numpy
+pandas
+networkx

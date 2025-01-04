@@ -168,7 +168,6 @@ def test_search_multiple_messages(chats, mocker):
     )
     results = chats.search(limit=10, offset=0, provider_id='provider_1')
     assert results is not None
-    print(results)
     assert len(results) == 2
     assert 'Hello, this is a test message.' in [result['message'] for result in results]
     assert 'Another test message.' in [result['message'] for result in results]
