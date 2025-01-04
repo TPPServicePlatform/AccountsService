@@ -17,6 +17,9 @@ os.environ['TESTING'] = '1'
 # Set a default DATABASE_URL for testing
 os.environ['DATABASE_URL'] = 'sqlite:///test.db'
 
+# Set a default MONGO_TEST_DB for testing
+os.environ['MONGO_TEST_DB'] = 'test_db'
+
 @pytest.fixture(scope='module')
 def engine():
     engine = create_engine('sqlite:///:memory:')
@@ -35,6 +38,16 @@ def session(engine, accounts):
     session.execute(accounts.accounts.delete())
     session.commit()
     session.close()
+
+@pytest.fixture(scope='function', autouse=True)
+def setup_teardown(engine, accounts):
+    # Setup: Clear the database before each test
+    accounts.accounts.drop(engine)
+    accounts.accounts.create(engine)
+    yield
+    # Teardown: Clear the database after each test
+    accounts.accounts.drop(engine)
+    accounts.accounts.create(engine)
 
 def test_insert(accounts):
     result = accounts.insert(
@@ -60,7 +73,7 @@ def test_get(accounts):
         description="Test description",
         birth_date="2000-01-01"
     )
-    account = accounts.get("testuser")
+    account = accounts.get("1234")
     assert account is not None
     assert account['username'] == "testuser"
     assert account['uuid'] == "1234"
@@ -96,5 +109,5 @@ def test_update(accounts):
     )
     result = accounts.update("testuser", {"complete_name": "Updated User"})
     assert result
-    account = accounts.get("testuser")
+    account = accounts.get("1234")
     assert account['complete_name'] == "Updated User"

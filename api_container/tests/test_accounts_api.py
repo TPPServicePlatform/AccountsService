@@ -29,18 +29,21 @@ from accounts_api import app, accounts_manager, firebase_manager, chats_manager
 @pytest.fixture(scope='function')
 def test_app():
     client = TestClient(app)
+    yield client
 
+@pytest.fixture(scope='function', autouse=True)
+def setup_teardown():
     # Setup code: runs before each test
     metadata = MetaData()
     metadata.reflect(bind=accounts_manager.engine)
     metadata.drop_all(bind=accounts_manager.engine)
-    metadata.create_all(bind=accounts_manager.engine)
+    accounts_manager.create_table()
     chats_manager.collection.drop()
-    yield client
+    yield
     # Teardown code: runs after each test
     metadata.reflect(bind=accounts_manager.engine)
     metadata.drop_all(bind=accounts_manager.engine)
-    metadata.create_all(bind=accounts_manager.engine)
+    accounts_manager.create_table()
     chats_manager.collection.drop()
 
 def test_get_account(test_app, mocker):
@@ -219,5 +222,100 @@ def test_search_messages_sent_by_provider(test_app, mocker):
     messages = response.json()["messages"]
     assert len(messages) == 4
     assert all([message["sender_id"] == "uid0" for message in messages])
+
+def test_review_client(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    body = {"score": 4}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    
+    updated_client = accounts_manager.get_by_username("clientuser")
+    assert updated_client["client_count_score"] == 1
+    assert updated_client["client_total_score"] == 4
+
+def test_review_client_update(test_app, mocker):
+    # Mock the database response
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    accounts_manager.insert("provideruser2", "uid_provider2", "Provider User 2", "provider2@example.com", None, True, None, "2000-01-01")
+
+    body = {"score": 4}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+    body = {"score": 2}
+    response = test_app.put("/review/uid_client/uid_provider2", json=body)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+    updated_client = accounts_manager.get_by_username("clientuser")
+    assert updated_client["client_count_score"] == 2
+    assert updated_client["client_total_score"] == 6
+
+def test_review_client_missing_score(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    body = {}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Missing score"
+
+def test_review_client_invalid_score(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    body = {"score": 6}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid score, must be between 0 and 5"
+
+def test_review_client_extra_fields(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    body = {"score": 4, "extra_field": "extra_value"}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 400
+    assert response.json()["detail"].startswith("Extra fields:")
+
+def test_review_client_not_found(test_app, mocker):
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    body = {"score": 4}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Client user not found"
+
+def test_review_provider_not_found(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    
+    body = {"score": 4}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Provider usernot found"
+
+def test_review_client_not_a_client(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, True, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    body = {"score": 4}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "The user to be reviewed is not a client, something is wrong"
+
+def test_review_provider_not_a_provider(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, False, None, "2000-01-01")
+    
+    body = {"score": 4}
+    response = test_app.put("/review/uid_client/uid_provider", json=body)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "The user who is reviewing is not a provider, something is wrong"
 
 

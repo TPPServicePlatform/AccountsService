@@ -71,7 +71,8 @@ REQUIRED_CREATE_FIELDS = {"username", "password",
                           "complete_name", "email", "is_provider", "birth_date"}
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
 VALID_UPDATE_FIELDS = {"complete_name", "email",
-                       "profile_picture", "description", "birth_date"}
+                       "profile_picture", "description", "birth_date", "validated"}
+ONLY_CLIENT_VALID_UPPDATE_FIELDS = {"reviewer_score", "client_count_score", "client_total_score"}
 REQUIREDPASSWORDRESET_FIELDS = {"email"}
 REQUIRED_SEND_MESSAGE_FIELDS = {"provider_id", "client_id", "message_content"}
 PROVIDER_RANKINGS = {5: "great", 4: "good", 3: "just_ok", 2: "neutral", 1: "not_recommended", 0: "newbie"}
@@ -269,6 +270,41 @@ def get_rankings(provider_id: str):
         min_finished_percent = PROVIDER_RANKINGS_METRICS[i]["min_finished_percent"]
         if avg_rating >= min_avg_rating and finished_percent >= min_finished_percent:
             return {"status": "ok", "rank": PROVIDER_RANKINGS[i], "metrics": metrics}
+        
+@app.put("/review/{client_id}/{provider_id}")
+def review_client(client_id: str, provider_id: str, body: dict):
+    score = body.get("score")
+    if score is None:
+        raise HTTPException(status_code=400, detail="Missing score")
+    extra_fields = set(body.keys()) - {"score"}
+    if extra_fields:
+        raise HTTPException(status_code=400, detail=f"""Extra fields: {
+                            ', '.join(extra_fields)}""")
+    
+    client = accounts_manager.get(client_id)
+    provider = accounts_manager.get(provider_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider usernot found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to be reviewed is not a client, something is wrong")
+    if not provider["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user who is reviewing is not a provider, something is wrong")
+    
+    if type(score) == str:
+        try:
+            score = int(score)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid score")
+    if score < 0 or score > MAX_RATING:
+        raise HTTPException(status_code=400, detail="Invalid score, must be between 0 and 5")
+    
+    new_client_count_score = (client["client_count_score"] or 0) + 1
+    new_client_total_score = (client["client_total_score"] or 0) + score
+    if not accounts_manager.update(client["username"], {"client_count_score": new_client_count_score, "client_total_score": new_client_total_score}):
+        raise HTTPException(status_code=400, detail="Error updating client")
+    return {"status": "ok"}
 
 @app.get("/fairness")
 def get_fairness():
