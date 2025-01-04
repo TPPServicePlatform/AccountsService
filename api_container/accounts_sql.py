@@ -1,5 +1,5 @@
 from typing import Optional, Union
-from sqlalchemy import MetaData, Table, Column, String, Boolean
+from sqlalchemy import Integer, MetaData, Table, Column, String, Boolean, Float
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import os
 import sys
@@ -29,6 +29,11 @@ class Accounts:
     - description: str
     - birth_date: datetime
     - validated: boolean
+
+    Special for clients (is_provider = False) (when the user is a provider, the following fields are None):
+    - reviewer_score: float -- This is the fairness value that the user has when reviewing a product (from 0 -bad- to 1 -good-) (result of the rev2 algorithm)
+    - client_count_score: int -- This is the number of reviews that the user has received from providers
+    - client_total_score: int -- This is the total score that the user has received from providers
     """
 
     def __init__(self, engine=None):
@@ -54,7 +59,10 @@ class Accounts:
                 Column('created_at', String),
                 Column('description', String),
                 Column('birth_date', String),
-                Column('validated', Boolean)
+                Column('validated', Boolean),
+                Column('reviewer_score', Float, default=None),
+                Column('client_count_score', Integer, default=None),
+                Column('client_total_score', Integer, default=None)
             )
             metadata.create_all(self.engine)
             session.commit()
