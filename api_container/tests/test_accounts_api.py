@@ -22,7 +22,7 @@ os.environ['MONGO_TEST_DB'] = 'test_db'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
 
-from accounts_api import app, accounts_manager, firebase_manager, chats_manager
+from accounts_api import app, accounts_manager, firebase_manager, chats_manager, favourites_manager
 
 # client = TestClient(app)
 
@@ -39,12 +39,14 @@ def setup_teardown():
     metadata.drop_all(bind=accounts_manager.engine)
     accounts_manager.create_table()
     chats_manager.collection.drop()
+    favourites_manager.collection.drop()
     yield
     # Teardown code: runs after each test
     metadata.reflect(bind=accounts_manager.engine)
     metadata.drop_all(bind=accounts_manager.engine)
     accounts_manager.create_table()
     chats_manager.collection.drop()
+    favourites_manager.collection.drop()
 
 def test_get_account(test_app, mocker):
     # Mock the database response
@@ -317,5 +319,86 @@ def test_review_provider_not_a_provider(test_app, mocker):
     response = test_app.put("/review/uid_client/uid_provider", json=body)
     assert response.status_code == 400
     assert response.json()["detail"] == "The user who is reviewing is not a provider, something is wrong"
+
+def test_add_favourite_provider(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    
+    response = test_app.put("/favourites/add/uid_client/uid_provider")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_remove_favourite_provider(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    favourites_manager.add_favourite_provider("uid_client", "uid_provider")
+    
+    response = test_app.delete("/favourites/remove/uid_client/uid_provider")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_get_favourite_providers(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    accounts_manager.insert("provideruser", "uid_provider", "Provider User", "provider@example.com", None, True, None, "2000-01-01")
+    favourites_manager.add_favourite_provider("uid_client", "uid_provider")
+    
+    response = test_app.get("/favourites/uid_client")
+    assert response.status_code == 200
+    providers = response.json()["providers"]
+    assert len(providers) == 1
+    assert providers[0] == "uid_provider"
+
+def test_add_folder(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    
+    response = test_app.put("/folders/add/uid_client/test_folder")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_remove_folder(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    favourites_manager.add_folder("uid_client", "test_folder")
+    
+    response = test_app.delete("/folders/remove/uid_client/test_folder")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_get_saved_folders(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    favourites_manager.add_folder("uid_client", "test_folder")
+    
+    response = test_app.get("/folders/uid_client")
+    assert response.status_code == 200
+    folders = response.json()["folders"]
+    assert len(folders) == 1
+    assert folders[0] == "test_folder"
+
+def test_add_service_to_folder(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    favourites_manager.add_folder("uid_client", "test_folder")
+    
+    response = test_app.put("/folders/addservice/uid_client/test_folder/service123")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_remove_service_from_folder(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    favourites_manager.add_folder("uid_client", "test_folder")
+    favourites_manager.add_service_to_folder("uid_client", "test_folder", "service123")
+    
+    response = test_app.delete("/folders/removeservice/uid_client/test_folder/service123")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_get_folder(test_app, mocker):
+    accounts_manager.insert("clientuser", "uid_client", "Client User", "client@example.com", None, False, None, "2000-01-01")
+    favourites_manager.add_folder("uid_client", "test_folder")
+    favourites_manager.add_service_to_folder("uid_client", "test_folder", "service123")
+    
+    response = test_app.get("/folders/uid_client/test_folder")
+    assert response.status_code == 200
+    services = response.json()["services"]
+    assert len(services) == 1
+    assert services[0] == "service123"
 
 

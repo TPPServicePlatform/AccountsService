@@ -6,6 +6,7 @@ from lib.utils import is_valid_date, time_to_string, get_test_engine
 from lib.rev2 import Rev2Graph
 from accounts_sql import Accounts
 from chats_nosql import Chats
+from favourites_nosql import Favourites
 import logging as logger
 import time
 from firebase_manager import FirebaseManager
@@ -60,11 +61,13 @@ if os.getenv('TESTING'):
 
     client = mongomock.MongoClient()
     chats_manager = Chats(test_client=client)
+    favourites_manager = Favourites(test_client=client)
     services_lib = ServicesLib(test_client=client)
 else:
     firebase_manager = FirebaseManager()
     accounts_manager = Accounts()
     chats_manager = Chats()
+    favourites_manager = Favourites()
     services_lib = ServicesLib()
 
 REQUIRED_CREATE_FIELDS = {"username", "password",
@@ -316,15 +319,125 @@ def get_fairness():
     results = graph.get_results()
     return {"status": "ok", "results": results}
 
-# def _mocked_list():
-#     edge_list = [] # list of tuples (user, service_id, score)
+@app.put("/favourites/add/{client_id}/{provider_id}")
+def add_favourite_provider(client_id: str, provider_id: str):
+    client = accounts_manager.get(client_id)
+    provider = accounts_manager.get(provider_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to add to favourites is not a client, something is wrong")
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider user not found")
+    if not provider["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to add to favourites is not a provider, something is wrong")
+    
+    if not favourites_manager.add_favourite_provider(client_id, provider_id):
+        raise HTTPException(status_code=400, detail="Error adding favourite provider")
+    return {"status": "ok"}
 
-#     items = {"itemA": 5, "itemB": 4, "itemC": 4.5, "itemD": 5}
-#     users = {"userA", "userB", "userC", "userD"}
-#     evil_user = "evilUser"
-#     for item, score in items.items():
-#         for user in users:
-#             edge_list.append((user, item, score))
-#         edge_list.append((evil_user, item, -1000))
-#     return edge_list
+@app.delete("/favourites/remove/{client_id}/{provider_id}")
+def remove_favourite_provider(client_id: str, provider_id: str):
+    client = accounts_manager.get(client_id)
+    provider = accounts_manager.get(provider_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to remove from favourites is not a client, something is wrong")
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider user not found")
+    if not provider["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to remove from favourites is not a provider, something is wrong")
+    
+    if not favourites_manager.remove_favourite_provider(client_id, provider_id):
+        raise HTTPException(status_code=400, detail="Error removing favourite provider")
+    return {"status": "ok"}
+
+@app.get("/favourites/{client_id}")
+def get_favourite_providers(client_id: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to get favourites is not a client, something is wrong")
+    
+    providers = favourites_manager.get_favourite_providers(client_id)
+    if providers is None:
+        raise HTTPException(status_code=404, detail="Client does not have any favourite providers")
+    return {"status": "ok", "providers": providers}
+
+@app.put("/folders/add/{client_id}/{folder_name}")
+def add_folder(client_id: str, folder_name: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to add a folder is not a client, something is wrong")
+    
+    if not favourites_manager.add_folder(client_id, folder_name):
+        raise HTTPException(status_code=400, detail="Error adding folder")
+    return {"status": "ok"}
+
+@app.delete("/folders/remove/{client_id}/{folder_name}")
+def remove_folder(client_id: str, folder_name: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to remove a folder is not a client, something is wrong")
+    
+    if not favourites_manager.remove_folder(client_id, folder_name):
+        raise HTTPException(status_code=400, detail="Error removing folder")
+    return {"status": "ok"}
+
+@app.get("/folders/{client_id}")
+def get_saved_folders(client_id: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to get folders is not a client, something is wrong")
+    
+    folders = favourites_manager.get_saved_folders(client_id)
+    if folders is None:
+        raise HTTPException(status_code=404, detail="Client does not have any folders")
+    return {"status": "ok", "folders": folders}
+
+@app.put("/folders/addservice/{client_id}/{folder_name}/{service_id}")
+def add_service_to_folder(client_id: str, folder_name: str, service_id: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to add a service to a folder is not a client, something is wrong")
+    
+    if not favourites_manager.add_service_to_folder(client_id, folder_name, service_id):
+        raise HTTPException(status_code=400, detail="Error adding service to folder")
+    return {"status": "ok"}
+
+@app.delete("/folders/removeservice/{client_id}/{folder_name}/{service_id}")
+def remove_service_from_folder(client_id: str, folder_name: str, service_id: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to remove a service from a folder is not a client, something is wrong")
+    
+    if not favourites_manager.remove_service_from_folder(client_id, folder_name, service_id):
+        raise HTTPException(status_code=400, detail="Error removing service from folder")
+    return {"status": "ok"}
+
+@app.get("/folders/{client_id}/{folder_name}")
+def get_folder(client_id: str, folder_name: str):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user to get a folder is not a client, something is wrong")
+    
+    services = favourites_manager.get_folder_services(client_id, folder_name)
+    if services is None:
+        raise HTTPException(status_code=404, detail="Client does not have that folder")
+    return {"status": "ok", "services": services}
+
     
