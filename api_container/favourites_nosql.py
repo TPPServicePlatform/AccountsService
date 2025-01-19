@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from pymongo import ASCENDING
@@ -98,11 +98,11 @@ class Favourites:
             return None
         return data.get('favourite_providers', [])
         
-    def _folder_exists(self, client_id: str, folder_name: str) -> bool:
+    def folder_exists(self, client_id: str, folder_name: str) -> bool:
         return self.collection.find_one({'client_id': client_id, f'saved_folders.{folder_name}': {'$exists': True}}) is not None
     
     def add_folder(self, client_id: str, folder_name: str) -> bool:
-        if self._folder_exists(client_id, folder_name):
+        if self.folder_exists(client_id, folder_name):
             return True
         if not self._client_has_document(client_id):
             if not self._create_basic_document(client_id):
@@ -115,7 +115,7 @@ class Favourites:
             return False
         
     def remove_folder(self, client_id: str, folder_name: str) -> bool:
-        if not self._folder_exists(client_id, folder_name):
+        if not self.folder_exists(client_id, folder_name):
             return True
         if not self._client_has_document(client_id):
             return False
@@ -133,7 +133,7 @@ class Favourites:
         return list(data.get('saved_folders', {}).keys())
 
     def add_service_to_folder(self, client_id: str, folder_name: str, service_id: str) -> bool:
-        if not self._folder_exists(client_id, folder_name):
+        if not self.folder_exists(client_id, folder_name):
             return False
         if not self._client_has_document(client_id):
             if not self._create_basic_document(client_id):
@@ -146,7 +146,7 @@ class Favourites:
             return False
 
     def remove_service_from_folder(self, client_id: str, folder_name: str, service_id: str) -> bool:
-        if not self._folder_exists(client_id, folder_name):
+        if not self.folder_exists(client_id, folder_name):
             return False
         if not self._client_has_document(client_id):
             return False
@@ -162,3 +162,36 @@ class Favourites:
         if not data:
             return None
         return data.get('saved_folders', {}).get(folder_name, [])
+    
+    def get_relations(self, available_services: List[str]) -> Optional[Dict[str, List[str]]]:
+        try:
+            pipeline = [
+                {'$project': {
+                    'client_id': 1,
+                    'saved_folders': {'$objectToArray': '$saved_folders'}
+                }},
+                {'$unwind': '$saved_folders'},
+                {'$match': {
+                    'saved_folders.v': {'$in': available_services}
+                }},
+                {'$project': {
+                    'client_id': 1,
+                    'folder_name': '$saved_folders.k',
+                    'services': {
+                        '$filter': {
+                            'input': '$saved_folders.v',
+                            'as': 'service',
+                            'cond': {'$in': ['$$service', available_services]}
+                        }
+                    }
+                }}
+            ]
+            data = list(self.collection.aggregate(pipeline))
+            relations = {}
+            for record in data:
+                complete_name = f"{record['client_id']}_{record['folder_name']}"
+                relations[complete_name] = record['services']
+            return relations
+        except Exception as e:
+            logger.error(e)
+            return None

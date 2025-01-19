@@ -193,3 +193,28 @@ def test_multiple_folders_services(favourites, mocker):
     assert len(services) == 1
     assert 'service_3' not in services
     assert 'service_4' in services
+
+def test_get_relations(favourites, mocker):
+    favourites.add_folder(client_id='client_1', folder_name='folder_1')
+    favourites.add_service_to_folder(client_id='client_1', folder_name='folder_1', service_id='service_1')
+    favourites.add_service_to_folder(client_id='client_1', folder_name='folder_1', service_id='service_2')
+    favourites.add_service_to_folder(client_id='client_1', folder_name='folder_1', service_id='service_3')
+    favourites.add_folder(client_id='client_1', folder_name='folder_2')
+    favourites.add_service_to_folder(client_id='client_1', folder_name='folder_2', service_id='service_2')
+    favourites.add_service_to_folder(client_id='client_1', folder_name='folder_2', service_id='service_3')
+    favourites.add_service_to_folder(client_id='client_1', folder_name='folder_2', service_id='service_4')
+    favourites.add_folder(client_id='client_2', folder_name='folder_1')
+    favourites.add_service_to_folder(client_id='client_2', folder_name='folder_1', service_id='service_4')
+    favourites.add_service_to_folder(client_id='client_2', folder_name='folder_1', service_id='service_5')
+    favourites.add_folder(client_id='client_2', folder_name='folder_2')
+    favourites.add_service_to_folder(client_id='client_2', folder_name='folder_2', service_id='service_1')
+    favourites.add_service_to_folder(client_id='client_2', folder_name='folder_2', service_id='service_5')
+
+    available_services=['service_1', 'service_2', 'service_3']
+    relations = favourites.get_relations(available_services)
+    all_values = [value for values in relations.values() for value in values]
+    assert len(relations) == 3 # client_1_folder_1, client_1_folder_2, client_2_folder_2
+    assert len(relations['client_1_folder_1']) == 3
+    assert len(relations['client_1_folder_2']) == 2
+    assert len(relations['client_2_folder_2']) == 1
+    assert all(value in available_services for value in all_values)

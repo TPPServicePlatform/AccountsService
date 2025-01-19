@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import logging as logger
+from fastapi import HTTPException
 
 HOUR = 60 * 60
 MINUTE = 60
@@ -42,3 +43,20 @@ def is_valid_date(date: str):
     except ValueError:
         return False
     return True
+
+def validate_location(client_location, required_fields):
+    if type(client_location) == str:
+        if client_location.count(",") != 1:
+            raise HTTPException(status_code=400, detail="Invalid client location (must be in the format 'longitude,latitude')")
+        client_location = client_location.split(",")
+        client_location = {"longitude": client_location[0], "latitude": client_location[1]}
+    elif type(client_location) == dict:
+        if not all([field in client_location for field in required_fields]):
+            missing_fields = required_fields - set(client_location.keys())
+            raise HTTPException(status_code=400, detail=f"Missing location fields: {', '.join(missing_fields)}")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid client location (must be a string or a dictionary)")
+    if not all([type(value) in [int, float] or is_float(value) for value in client_location.values()]):
+        raise HTTPException(status_code=400, detail="Invalid client location (each value must be a float)")
+    client_location = {key: float(value) for key, value in client_location.items()}
+    return client_location

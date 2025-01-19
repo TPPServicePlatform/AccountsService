@@ -2,8 +2,9 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import is_valid_date, time_to_string, get_test_engine
+from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_location
 from lib.rev2 import Rev2Graph
+from lib.interest_prediction import InterestPrediction
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
@@ -70,6 +71,7 @@ else:
     favourites_manager = Favourites()
     services_lib = ServicesLib()
 
+REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 REQUIRED_CREATE_FIELDS = {"username", "password",
                           "complete_name", "email", "is_provider", "birth_date"}
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
@@ -440,4 +442,34 @@ def get_folder(client_id: str, folder_name: str):
         raise HTTPException(status_code=404, detail="Client does not have that folder")
     return {"status": "ok", "services": services}
 
+@app.get("folders/{client_id}/{folder_name}/recommendations")
+def get_folder_recommendations(
+    client_id: str,
+    folder_name: str,
+    client_location: str = Query(...),
+    ):
+    client = accounts_manager.get(client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client user not found")
+    if client["is_provider"]:
+        raise HTTPException(status_code=400, detail="The user is not a client, something is wrong")
+    if not client_location:
+        raise HTTPException(status_code=400, detail="Client location is required")
+    client_location = validate_location(client_location, REQUIRED_LOCATION_FIELDS)
     
+    if not favourites_manager.folder_exists(client_id, folder_name):
+        raise HTTPException(status_code=404, detail="Client does not have that folder")
+    
+    available_services = services_lib.get_available_services(client_location)
+    if not available_services:
+        raise HTTPException(status_code=404, detail="No available services in the area")
+    
+    relations_dict = favourites_manager.get_relations(available_services)
+    if relations_dict is None:
+        raise HTTPException(status_code=404, detail="No available services to recommend")
+    
+    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items() for saved_service in saved_services]
+    interest_predictor = InterestPrediction(relations, folder_name)
+    recommendations = interest_predictor.get_interest_prediction()
+    return {"status": "ok", "recommendations": recommendations}
+
