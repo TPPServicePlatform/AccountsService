@@ -311,7 +311,7 @@ def review_client(client_id: str, provider_id: str, body: dict):
         raise HTTPException(status_code=400, detail="Error updating client")
     return {"status": "ok"}
 
-@app.get("/fairness")
+@app.get("/fairness") # TODO: make this run in the background automatically
 def get_fairness():
     edge_list = services_lib.get_recent_ratings(max_delta_days=360)
     # edge_list = _mocked_list()
