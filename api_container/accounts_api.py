@@ -77,15 +77,17 @@ REQUIRED_CREATE_FIELDS = {"username", "password",
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
 VALID_UPDATE_FIELDS = {"complete_name", "email",
                        "profile_picture", "description", "birth_date", "validated"}
-ONLY_CLIENT_VALID_UPPDATE_FIELDS = {"reviewer_score", "client_count_score", "client_total_score"}
+ONLY_CLIENT_VALID_UPPDATE_FIELDS = {
+    "reviewer_score", "client_count_score", "client_total_score"}
 REQUIREDPASSWORDRESET_FIELDS = {"email"}
 REQUIRED_SEND_MESSAGE_FIELDS = {"provider_id", "client_id", "message_content"}
-PROVIDER_RANKINGS = {5: "great", 4: "good", 3: "just_ok", 2: "neutral", 1: "not_recommended", 0: "newbie"}
-PROVIDER_RANKINGS_METRICS = {5: {"min_avg_rating": 0.9, "min_finished_percent": 0.8}, \
-                                4: {"min_avg_rating": 0.75, "min_finished_percent": 0.7}, \
-                                3: {"min_avg_rating": 0.6, "min_finished_percent": 0.6}, \
-                                2: {"min_avg_rating": 0.4, "min_finished_percent": 0.0}, \
-                                1: {"min_avg_rating": 0.0, "min_finished_percent": 0.0}}
+PROVIDER_RANKINGS = {5: "great", 4: "good", 3: "just_ok",
+                     2: "neutral", 1: "not_recommended", 0: "newbie"}
+PROVIDER_RANKINGS_METRICS = {5: {"min_avg_rating": 0.9, "min_finished_percent": 0.8},
+                             4: {"min_avg_rating": 0.75, "min_finished_percent": 0.7},
+                             3: {"min_avg_rating": 0.6, "min_finished_percent": 0.6},
+                             2: {"min_avg_rating": 0.4, "min_finished_percent": 0.0},
+                             1: {"min_avg_rating": 0.0, "min_finished_percent": 0.0}}
 MIN_FINISHED_RENTALS = 100
 MAX_RATING = 5
 
@@ -101,6 +103,15 @@ def get(username: str):
     if account is None:
         raise HTTPException(status_code=404, detail=f"""Account '{
                             username}' not found""")
+    return account
+
+
+@app.get("/getemail/{email}")
+def getemail(email: str):
+    account = accounts_manager.getemail(email)
+    if account is None:
+        raise HTTPException(status_code=404, detail=f"""Account with email '{
+                            email}' not found""")
     return account
 
 
@@ -180,31 +191,36 @@ def password_reset(body: dict):
 
 @app.put("/chats/{destination_id}")
 def send_message(destination_id: str, body: dict):
-    data = {key: value for key, value in body.items() if key in REQUIRED_SEND_MESSAGE_FIELDS}
+    data = {key: value for key, value in body.items(
+    ) if key in REQUIRED_SEND_MESSAGE_FIELDS}
 
     if not all([field in data for field in REQUIRED_SEND_MESSAGE_FIELDS]):
         missing_fields = REQUIRED_SEND_MESSAGE_FIELDS - set(data.keys())
         raise HTTPException(status_code=400, detail=f"""Missing fields: {
                             ', '.join(missing_fields)}""")
-    
+
     extra_fields = set(data.keys()) - REQUIRED_SEND_MESSAGE_FIELDS
     if extra_fields:
         raise HTTPException(status_code=400, detail=f"""Extra fields: {
                             ', '.join(extra_fields)}""")
-    
+
     if not destination_id in {data["provider_id"], data["client_id"]}:
-        raise HTTPException(status_code=400, detail="Destination ID does not match with provider_id or client_id")
-    
+        raise HTTPException(
+            status_code=400, detail="Destination ID does not match with provider_id or client_id")
+
     if not accounts_manager.get(data["provider_id"]):
         raise HTTPException(status_code=404, detail="Provider not found")
     if not accounts_manager.get(data["client_id"]):
         raise HTTPException(status_code=404, detail="Client not found")
-    
-    sender_id = ({data["provider_id"], data["client_id"]} - {destination_id}).pop()
-    chat_id = chats_manager.insert_message(data["provider_id"], data["client_id"], data["message_content"], sender_id)
+
+    sender_id = ({data["provider_id"], data["client_id"]} -
+                 {destination_id}).pop()
+    chat_id = chats_manager.insert_message(
+        data["provider_id"], data["client_id"], data["message_content"], sender_id)
     if chat_id is None:
         raise HTTPException(status_code=400, detail="Error inserting message")
     return {"status": "ok", "chat_id": chat_id}
+
 
 @app.get("/chats/{provider_id}/{client_id}")
 def get_chat(provider_id: str, client_id: str, limit: int, offset: int):
@@ -212,11 +228,13 @@ def get_chat(provider_id: str, client_id: str, limit: int, offset: int):
         raise HTTPException(status_code=404, detail="Provider not found")
     if not accounts_manager.get(client_id):
         raise HTTPException(status_code=404, detail="Client not found")
-    
-    messages = chats_manager.get_messages(provider_id, client_id, limit, offset)
+
+    messages = chats_manager.get_messages(
+        provider_id, client_id, limit, offset)
     if messages is None:
         raise HTTPException(status_code=404, detail="No messages found")
     return {"status": "ok", "messages": messages}
+
 
 @app.get("/chats/search")
 def search_messages(
@@ -235,19 +253,21 @@ def search_messages(
         raise HTTPException(status_code=404, detail="Client not found")
     if sender_id is not None and not accounts_manager.get(sender_id):
         raise HTTPException(status_code=404, detail="Sender not found")
-    
+
     if keywords is not None:
         keywords = keywords.split()
-    
+
     if min_date is not None and not is_valid_date(min_date):
         raise HTTPException(status_code=400, detail="Invalid min_date")
     if max_date is not None and not is_valid_date(max_date):
         raise HTTPException(status_code=400, detail="Invalid max_date")
-    
-    messages = chats_manager.search(limit, offset, provider_id, client_id, sender_id, min_date, max_date, keywords)
+
+    messages = chats_manager.search(
+        limit, offset, provider_id, client_id, sender_id, min_date, max_date, keywords)
     if messages is None:
         raise HTTPException(status_code=404, detail="No messages found")
     return {"status": "ok", "messages": messages}
+
 
 @app.get("/rankings/{provider_id}")
 def get_rankings(provider_id: str):
@@ -255,8 +275,9 @@ def get_rankings(provider_id: str):
     if account is None:
         raise HTTPException(status_code=404, detail="Provider not found")
     if not account["is_provider"]:
-        raise HTTPException(status_code=400, detail="Account is not a provider")
-    
+        raise HTTPException(
+            status_code=400, detail="Account is not a provider")
+
     total_rentals = services_lib.total_rentals(provider_id)
     finished_rentals = services_lib.finished_rentals(provider_id)
     finished_percent = finished_rentals / total_rentals if total_rentals > 0 else 0
@@ -265,17 +286,19 @@ def get_rankings(provider_id: str):
     avg_rating = rating_metrics["avg_rating"] if rating_metrics else None
     num_ratings = rating_metrics["num_ratings"] if rating_metrics else 0
 
-    metrics = {"total_rentals": total_rentals, "finished_rentals": finished_rentals, "finished_percent": finished_percent, "avg_rating": avg_rating, "num_ratings": num_ratings}
+    metrics = {"total_rentals": total_rentals, "finished_rentals": finished_rentals,
+               "finished_percent": finished_percent, "avg_rating": avg_rating, "num_ratings": num_ratings}
 
     if finished_rentals < MIN_FINISHED_RENTALS or avg_rating is None:
         return {"status": "ok", "rank": PROVIDER_RANKINGS[0], "metrics": metrics}
-    
+
     for i in range(MAX_RATING, -1, -1):
         min_avg_rating = PROVIDER_RANKINGS_METRICS[i]["min_avg_rating"] * MAX_RATING
         min_finished_percent = PROVIDER_RANKINGS_METRICS[i]["min_finished_percent"]
         if avg_rating >= min_avg_rating and finished_percent >= min_finished_percent:
             return {"status": "ok", "rank": PROVIDER_RANKINGS[i], "metrics": metrics}
-        
+
+
 @app.put("/review/{client_id}/{provider_id}")
 def review_client(client_id: str, provider_id: str, body: dict):
     score = body.get("score")
@@ -285,7 +308,7 @@ def review_client(client_id: str, provider_id: str, body: dict):
     if extra_fields:
         raise HTTPException(status_code=400, detail=f"""Extra fields: {
                             ', '.join(extra_fields)}""")
-    
+
     client = accounts_manager.get(client_id)
     provider = accounts_manager.get(provider_id)
     if not client:
@@ -293,25 +316,29 @@ def review_client(client_id: str, provider_id: str, body: dict):
     if not provider:
         raise HTTPException(status_code=404, detail="Provider usernot found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to be reviewed is not a client, something is wrong")
+        raise HTTPException(
+            status_code=400, detail="The user to be reviewed is not a client, something is wrong")
     if not provider["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user who is reviewing is not a provider, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user who is reviewing is not a provider, something is wrong")
+
     if type(score) == str:
         try:
             score = int(score)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid score")
     if score < 0 or score > MAX_RATING:
-        raise HTTPException(status_code=400, detail="Invalid score, must be between 0 and 5")
-    
+        raise HTTPException(
+            status_code=400, detail="Invalid score, must be between 0 and 5")
+
     new_client_count_score = (client["client_count_score"] or 0) + 1
     new_client_total_score = (client["client_total_score"] or 0) + score
     if not accounts_manager.update(client["username"], {"client_count_score": new_client_count_score, "client_total_score": new_client_total_score}):
         raise HTTPException(status_code=400, detail="Error updating client")
     return {"status": "ok"}
 
-@app.get("/fairness") # TODO: make this run in the background automatically
+
+@app.get("/fairness")  # TODO: make this run in the background automatically
 def get_fairness():
     edge_list = services_lib.get_recent_ratings(max_delta_days=360)
     # edge_list = _mocked_list()
@@ -321,6 +348,7 @@ def get_fairness():
     results = graph.get_results()
     return {"status": "ok", "results": results}
 
+
 @app.put("/favourites/add/{client_id}/{provider_id}")
 def add_favourite_provider(client_id: str, provider_id: str):
     client = accounts_manager.get(client_id)
@@ -328,15 +356,19 @@ def add_favourite_provider(client_id: str, provider_id: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to add to favourites is not a client, something is wrong")
+        raise HTTPException(
+            status_code=400, detail="The user to add to favourites is not a client, something is wrong")
     if not provider:
         raise HTTPException(status_code=404, detail="Provider user not found")
     if not provider["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to add to favourites is not a provider, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to add to favourites is not a provider, something is wrong")
+
     if not favourites_manager.add_favourite_provider(client_id, provider_id):
-        raise HTTPException(status_code=400, detail="Error adding favourite provider")
+        raise HTTPException(
+            status_code=400, detail="Error adding favourite provider")
     return {"status": "ok"}
+
 
 @app.delete("/favourites/remove/{client_id}/{provider_id}")
 def remove_favourite_provider(client_id: str, provider_id: str):
@@ -345,15 +377,19 @@ def remove_favourite_provider(client_id: str, provider_id: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to remove from favourites is not a client, something is wrong")
+        raise HTTPException(
+            status_code=400, detail="The user to remove from favourites is not a client, something is wrong")
     if not provider:
         raise HTTPException(status_code=404, detail="Provider user not found")
     if not provider["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to remove from favourites is not a provider, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to remove from favourites is not a provider, something is wrong")
+
     if not favourites_manager.remove_favourite_provider(client_id, provider_id):
-        raise HTTPException(status_code=400, detail="Error removing favourite provider")
+        raise HTTPException(
+            status_code=400, detail="Error removing favourite provider")
     return {"status": "ok"}
+
 
 @app.get("/favourites/{client_id}")
 def get_favourite_providers(client_id: str):
@@ -361,12 +397,15 @@ def get_favourite_providers(client_id: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to get favourites is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to get favourites is not a client, something is wrong")
+
     providers = favourites_manager.get_favourite_providers(client_id)
     if providers is None:
-        raise HTTPException(status_code=404, detail="Client does not have any favourite providers")
+        raise HTTPException(
+            status_code=404, detail="Client does not have any favourite providers")
     return {"status": "ok", "providers": providers}
+
 
 @app.put("/folders/add/{client_id}/{folder_name}")
 def add_folder(client_id: str, folder_name: str):
@@ -374,11 +413,13 @@ def add_folder(client_id: str, folder_name: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to add a folder is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to add a folder is not a client, something is wrong")
+
     if not favourites_manager.add_folder(client_id, folder_name):
         raise HTTPException(status_code=400, detail="Error adding folder")
     return {"status": "ok"}
+
 
 @app.delete("/folders/remove/{client_id}/{folder_name}")
 def remove_folder(client_id: str, folder_name: str):
@@ -386,11 +427,13 @@ def remove_folder(client_id: str, folder_name: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to remove a folder is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to remove a folder is not a client, something is wrong")
+
     if not favourites_manager.remove_folder(client_id, folder_name):
         raise HTTPException(status_code=400, detail="Error removing folder")
     return {"status": "ok"}
+
 
 @app.get("/folders/{client_id}")
 def get_saved_folders(client_id: str):
@@ -398,12 +441,15 @@ def get_saved_folders(client_id: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to get folders is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to get folders is not a client, something is wrong")
+
     folders = favourites_manager.get_saved_folders(client_id)
     if folders is None:
-        raise HTTPException(status_code=404, detail="Client does not have any folders")
+        raise HTTPException(
+            status_code=404, detail="Client does not have any folders")
     return {"status": "ok", "folders": folders}
+
 
 @app.put("/folders/addservice/{client_id}/{folder_name}/{service_id}")
 def add_service_to_folder(client_id: str, folder_name: str, service_id: str):
@@ -411,11 +457,14 @@ def add_service_to_folder(client_id: str, folder_name: str, service_id: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to add a service to a folder is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to add a service to a folder is not a client, something is wrong")
+
     if not favourites_manager.add_service_to_folder(client_id, folder_name, service_id):
-        raise HTTPException(status_code=400, detail="Error adding service to folder")
+        raise HTTPException(
+            status_code=400, detail="Error adding service to folder")
     return {"status": "ok"}
+
 
 @app.delete("/folders/removeservice/{client_id}/{folder_name}/{service_id}")
 def remove_service_from_folder(client_id: str, folder_name: str, service_id: str):
@@ -423,11 +472,14 @@ def remove_service_from_folder(client_id: str, folder_name: str, service_id: str
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to remove a service from a folder is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to remove a service from a folder is not a client, something is wrong")
+
     if not favourites_manager.remove_service_from_folder(client_id, folder_name, service_id):
-        raise HTTPException(status_code=400, detail="Error removing service from folder")
+        raise HTTPException(
+            status_code=400, detail="Error removing service from folder")
     return {"status": "ok"}
+
 
 @app.get("/folders/{client_id}/{folder_name}")
 def get_folder(client_id: str, folder_name: str):
@@ -435,41 +487,50 @@ def get_folder(client_id: str, folder_name: str):
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user to get a folder is not a client, something is wrong")
-    
+        raise HTTPException(
+            status_code=400, detail="The user to get a folder is not a client, something is wrong")
+
     services = favourites_manager.get_folder_services(client_id, folder_name)
     if services is None:
-        raise HTTPException(status_code=404, detail="Client does not have that folder")
+        raise HTTPException(
+            status_code=404, detail="Client does not have that folder")
     return {"status": "ok", "services": services}
+
 
 @app.get("folders/{client_id}/{folder_name}/recommendations")
 def get_folder_recommendations(
     client_id: str,
     folder_name: str,
     client_location: str = Query(...),
-    ):
+):
     client = accounts_manager.get(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client user not found")
     if client["is_provider"]:
-        raise HTTPException(status_code=400, detail="The user is not a client, something is wrong")
+        raise HTTPException(
+            status_code=400, detail="The user is not a client, something is wrong")
     if not client_location:
-        raise HTTPException(status_code=400, detail="Client location is required")
-    client_location = validate_location(client_location, REQUIRED_LOCATION_FIELDS)
-    
+        raise HTTPException(
+            status_code=400, detail="Client location is required")
+    client_location = validate_location(
+        client_location, REQUIRED_LOCATION_FIELDS)
+
     if not favourites_manager.folder_exists(client_id, folder_name):
-        raise HTTPException(status_code=404, detail="Client does not have that folder")
-    
+        raise HTTPException(
+            status_code=404, detail="Client does not have that folder")
+
     available_services = services_lib.get_available_services(client_location)
     if not available_services:
-        raise HTTPException(status_code=404, detail="No available services in the area")
-    
+        raise HTTPException(
+            status_code=404, detail="No available services in the area")
+
     relations_dict = favourites_manager.get_relations(available_services)
     if relations_dict is None:
-        raise HTTPException(status_code=404, detail="No available services to recommend")
-    
-    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items() for saved_service in saved_services]
+        raise HTTPException(
+            status_code=404, detail="No available services to recommend")
+
+    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items()
+                 for saved_service in saved_services]
     interest_predictor = InterestPrediction(relations, folder_name)
     recommendations = interest_predictor.get_interest_prediction()
     return {"status": "ok", "recommendations": recommendations}
-

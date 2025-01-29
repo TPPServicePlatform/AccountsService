@@ -1,3 +1,4 @@
+from lib.utils import get_actual_time, get_engine
 from typing import Optional, Union
 from sqlalchemy import Integer, MetaData, Table, Column, String, Boolean, Float
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -6,14 +7,15 @@ import sys
 import logging as logger
 from sqlalchemy.orm import Session, sessionmaker
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
-from lib.utils import get_actual_time, get_engine
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '..', '..', 'lib')))
 
 HOUR = 60 * 60
 MINUTE = 60
 MILLISECOND = 1_000
 
 # TODO: (General) -> Create tests for each method && add the required checks in each method
+
 
 class Accounts:
     """
@@ -102,7 +104,16 @@ class Accounts:
             if row is None:
                 return None
             return row._asdict()
-    
+
+    def get_by_email(self, email: str) -> Optional[dict]:
+        with self.engine.connect() as connection:
+            query = self.accounts.select().where(self.accounts.c.email == email)
+            result = connection.execute(query)
+            row = result.fetchone()
+            if row is None:
+                return None
+            return row._asdict()
+
     def get(self, id: str) -> Optional[dict]:
         with self.engine.connect() as connection:
             query = self.accounts.select().where(self.accounts.c.uuid == id)
@@ -111,7 +122,7 @@ class Accounts:
             if row is None:
                 return None
             return row._asdict()
-    
+
     def getemail(self, email: str) -> Optional[dict]:
         with self.engine.connect() as connection:
             query = self.accounts.select().where(self.accounts.c.email == email)
@@ -132,11 +143,12 @@ class Accounts:
                 session.rollback()
                 return False
         return True
-    
+
     def update(self, username: str, data: dict) -> bool:
         with Session(self.engine) as session:
             try:
-                query = self.accounts.update().where(self.accounts.c.username == username).values(data)
+                query = self.accounts.update().where(
+                    self.accounts.c.username == username).values(data)
                 session.execute(query)
                 session.commit()
             except SQLAlchemyError as e:
@@ -148,4 +160,3 @@ class Accounts:
     def clear(self):
         self.metadata.drop_all()
         self.metadata.create_all()
-        
