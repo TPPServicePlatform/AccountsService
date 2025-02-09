@@ -115,6 +115,25 @@ def getemail(email: str):
     return account
 
 
+@app.post("/verificationmail/{uid}")
+def sendverification(uid: str):
+    account = accounts_manager.get(uid)
+    if account is None:
+        raise HTTPException(
+            status_code=404, detail=f"""Account with email not found""")
+    try:
+        firebase_manager.send_email_verification(account["email"])
+    except FirebaseError:
+        raise HTTPException(
+            status_code=400, detail="Error sending email verification")
+    return {"status": "ok"}
+
+
+@app.get("/isemailverified/{uid}")
+def isemailverified(udi: str):
+    return {"email_verified": firebase_manager.is_email_verified(uid)}
+
+
 @app.post("/create")
 def create(body: dict):
     data = {key: value for key, value in body.items(
