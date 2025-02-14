@@ -4,7 +4,7 @@ from typing import Optional
 import mongomock
 from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_location
 from lib.rev2 import Rev2Graph
-from lib.interest_prediction import InterestPrediction
+from AccountsService.lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
@@ -545,11 +545,9 @@ def get_folder_recommendations(
 
     relations_dict = favourites_manager.get_relations(available_services)
     if relations_dict is None:
-        raise HTTPException(
-            status_code=404, detail="No available services to recommend")
-
-    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items()
-                 for saved_service in saved_services]
-    interest_predictor = InterestPrediction(relations, folder_name)
+        raise HTTPException(status_code=404, detail="No available services to recommend")
+    
+    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items() for saved_service in saved_services]
+    interest_predictor = InterestPredictor(relations, folder_name)
     recommendations = interest_predictor.get_interest_prediction()
     return {"status": "ok", "recommendations": recommendations}
