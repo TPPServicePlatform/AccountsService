@@ -4,7 +4,7 @@ from typing import Optional
 import mongomock
 from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_location
 from lib.rev2 import Rev2Graph
-from AccountsService.lib.interest_predictor import InterestPredictor
+from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
