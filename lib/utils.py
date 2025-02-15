@@ -7,6 +7,7 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import logging as logger
 from fastapi import HTTPException
+import re
 
 HOUR = 60 * 60
 MINUTE = 60
@@ -44,6 +45,10 @@ def is_valid_date(date: str):
         return False
     return True
 
+def is_float(value):
+    float_pattern = re.compile(r'^-?\d+(\.\d+)?$')
+    return bool(float_pattern.match(value))
+
 def validate_location(client_location, required_fields):
     if type(client_location) == str:
         if client_location.count(",") != 1:
@@ -60,3 +65,7 @@ def validate_location(client_location, required_fields):
         raise HTTPException(status_code=400, detail="Invalid client location (each value must be a float)")
     client_location = {key: float(value) for key, value in client_location.items()}
     return client_location
+
+def validate_identity():
+    # Add here a third party service to validate the identity of the user
+    return True
