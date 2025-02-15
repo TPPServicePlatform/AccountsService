@@ -2,9 +2,9 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_location
+from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_identity, validate_location
 from lib.rev2 import Rev2Graph
-from AccountsService.lib.interest_predictor import InterestPredictor
+from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
@@ -72,8 +72,9 @@ else:
     services_lib = ServicesLib()
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
+IDENTITY_VALIDATION_FIELDS = {}
 REQUIRED_CREATE_FIELDS = {"username", "password",
-                          "complete_name", "email", "is_provider", "birth_date"}
+                          "complete_name", "email", "is_provider", "birth_date"} | IDENTITY_VALIDATION_FIELDS
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
 VALID_UPDATE_FIELDS = {"complete_name", "email",
                        "profile_picture", "description", "birth_date", "validated"}
@@ -143,6 +144,10 @@ def create(body: dict):
         missing_fields = REQUIRED_CREATE_FIELDS - set(data.keys())
         raise HTTPException(status_code=400, detail=f"""Missing fields: {
                             ', '.join(missing_fields)}""")
+
+    if not validate_identity():
+        raise HTTPException(
+            status_code=400, detail="Identity validation failed")
 
     data.update(
         {field: None for field in OPTIONAL_CREATE_FIELDS if field not in data})
