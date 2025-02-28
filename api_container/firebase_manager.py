@@ -18,6 +18,16 @@ class FirebaseManager():
         print(f"Successfully created user: {created_user.uid}")
         return created_user
 
+    def login_user(self, email, password):
+        try:
+            signed_in_user = auth.sign_in_with_email_and_password(
+                email, password)
+            print(f"Successfully signed in user: {signed_in_user['localId']}")
+            return signed_in_user
+        except Exception as e:
+            print(f"Error signing in user: {e}")
+            return None
+
     def delete_user(self, uid):
         auth.delete_user(uid)
         print(f"Successfully deleted user: {uid}")
