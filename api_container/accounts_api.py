@@ -257,7 +257,9 @@ def get_chat(provider_id: str, client_id: str, limit: int, offset: int):
         provider_id, client_id, limit, offset)
     if messages is None:
         raise HTTPException(status_code=404, detail="No messages found")
-    return {"status": "ok", "messages": messages}
+    
+    total_messages = chats_manager.count_messages(provider_id, client_id)
+    return {"status": "ok", "messages": messages, "total_messages": total_messages}
 
 
 @app.get("/chats/search")
