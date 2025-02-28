@@ -294,6 +294,17 @@ def search_messages(
         raise HTTPException(status_code=404, detail="No messages found")
     return {"status": "ok", "messages": messages}
 
+@app.get("/chats/getall/{user_id}")
+def get_all_chats(user_id: str, is_provider: bool):
+    user = accounts_manager.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if is_provider and not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    if not is_provider and user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a client")
+    all_chats = chats_manager.get_chats(user_id, is_provider)
+    return {"status": "ok"} | all_chats
 
 @app.get("/rankings/{provider_id}")
 def get_rankings(provider_id: str):

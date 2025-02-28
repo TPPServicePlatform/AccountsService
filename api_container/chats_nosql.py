@@ -195,3 +195,7 @@ class Chats:
 
         return [dict(result) for result in self.collection.aggregate(pipeline)] or None
 
+    def get_chats(self, user_id: str, is_provider: bool) -> Dict:
+        if is_provider:
+            return {"clients": [chat['client_id'] for chat in self.collection.find({'provider_id': user_id})]}
+        return {"providers": [chat['provider_id'] for chat in self.collection.find({'client_id': user_id})]}
