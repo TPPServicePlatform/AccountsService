@@ -3,8 +3,8 @@ from typing import Optional
 
 import mongomock
 from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_identity, validate_location
-from lib.rev2 import Rev2Graph
-from lib.interest_predictor import InterestPredictor
+# from lib.rev2 import Rev2Graph
+# from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
@@ -16,8 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import sys
 import firebase_admin
-from firebase_admin.exceptions import FirebaseError
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, exceptions
 from imported_lib.ServicesService.services_lib import ServicesLib
 import os
 
@@ -56,7 +55,7 @@ app.add_middleware(
 
 if os.getenv('TESTING'):
     from unittest.mock import MagicMock
-    firebase_manager = MagicMock()
+    firebase_manager = FirebaseManager()
     test_engine = get_test_engine()
     accounts_manager = Accounts(engine=test_engine)
 
@@ -74,7 +73,7 @@ else:
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 IDENTITY_VALIDATION_FIELDS = {}
 REQUIRED_CREATE_FIELDS = {"username", "password",
-                          "complete_name", "email", "is_provider", "birth_date"} | IDENTITY_VALIDATION_FIELDS
+                          "complete_name", "email", "is_provider", "birth_date"}
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
 VALID_UPDATE_FIELDS = {"complete_name", "email",
                        "profile_picture", "description", "birth_date", "validated"}
@@ -107,12 +106,35 @@ def get(username: str):
     return account
 
 
+@app.post("/login")
+def login(body: dict):
+    data = {key: value for key, value in body.items() if key in [
+        "email", "password"]}
+    if not all([field in data for field in ["email", "password"]]):
+        missing_fields = ["email", "password"] - set(data.keys())
+        raise HTTPException(status_code=400, detail=f"""Missing fields: {
+                            ', '.join(missing_fields)}""")
+    user = firebase_manager.login_user(data["email"], data["password"])
+    if user is None:
+        raise HTTPException(status_code=404, detail="Invalid credentials")
+    return {"status": "ok", "user_id": f"{user.uid}"}
+
+
 @app.get("/getemail/{email}")
 def getemail(email: str):
     account = accounts_manager.getemail(email)
     if account is None:
         raise HTTPException(status_code=404, detail=f"""Account with email '{
                             email}' not found""")
+    return account
+
+
+@app.get("/getuid/{uid}")
+def getuid(uid: str):
+    account = accounts_manager.get(uid)
+    if account is None:
+        raise HTTPException(status_code=404, detail=f"""Account with uid '{
+                            uid}' not found""")
     return account
 
 
@@ -124,7 +146,7 @@ def sendverification(uid: str):
             status_code=404, detail=f"""Account with email not found""")
     try:
         firebase_manager.send_email_verification(account["email"])
-    except FirebaseError:
+    except exceptions.FirebaseError:
         raise HTTPException(
             status_code=400, detail="Error sending email verification")
     return {"status": "ok"}
@@ -149,6 +171,12 @@ def create(body: dict):
         raise HTTPException(
             status_code=400, detail="Identity validation failed")
 
+    if "is_provider" in data:
+        if isinstance(data["is_provider"], str):
+            data["is_provider"] = data["is_provider"].lower() == "true"
+    else:
+        data["is_provider"] = False
+
     data.update(
         {field: None for field in OPTIONAL_CREATE_FIELDS if field not in data})
 
@@ -166,8 +194,8 @@ def create(body: dict):
         return {"status": "ok", "user_id": f"{created_user.uid}"}
     except auth.EmailAlreadyExistsError:
         raise HTTPException(status_code=400, detail="Account already exists")
-    except auth.FirebaseError as e:
-        # print('Error creating user:', e)
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
         raise HTTPException(status_code=400, detail="Error creating user")
 
 
@@ -184,8 +212,10 @@ def update(username: str, body: dict):
               value in body.items() if key in VALID_UPDATE_FIELDS}
     if "validated" in body and body["validated"]:
         update["validated"] = True
+    print(update)
 
     not_valid = {key for key in body if key not in update}
+    print("not_valid", not_valid)
     if not_valid:
         raise HTTPException(status_code=400, detail=f"""This fields does not exist or are not allowed to update: {
                             ', '.join(not_valid)}""")
@@ -197,6 +227,7 @@ def update(username: str, body: dict):
         firebase_manager.update_password(username, update["password"])
 
     if not accounts_manager.update(username, update):
+        print("Error updating account")
         raise HTTPException(status_code=400, detail="Error updating account")
     return {"status": "ok"}
 
@@ -563,9 +594,11 @@ def get_folder_recommendations(
 
     relations_dict = favourites_manager.get_relations(available_services)
     if relations_dict is None:
-        raise HTTPException(status_code=404, detail="No available services to recommend")
-    
-    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items() for saved_service in saved_services]
+        raise HTTPException(
+            status_code=404, detail="No available services to recommend")
+
+    relations = [(folder, saved_service) for folder, saved_services in relations_dict.items()
+                 for saved_service in saved_services]
     interest_predictor = InterestPredictor(relations, folder_name)
     recommendations = interest_predictor.get_interest_prediction()
     return {"status": "ok", "recommendations": recommendations}
