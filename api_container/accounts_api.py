@@ -277,7 +277,7 @@ def send_message(destination_id: str, body: dict):
     return {"status": "ok", "chat_id": chat_id}
 
 
-@app.get("/chats/{provider_id}/{client_id}")
+@app.get("/chats/one/{provider_id}/{client_id}")
 def get_chat(provider_id: str, client_id: str, limit: int, offset: int):
     if not accounts_manager.get(provider_id):
         raise HTTPException(status_code=404, detail="Provider not found")
