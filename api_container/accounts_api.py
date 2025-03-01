@@ -325,7 +325,7 @@ def search_messages(
         raise HTTPException(status_code=404, detail="No messages found")
     return {"status": "ok", "messages": messages}
 
-@app.get("/chats/getall/{user_id}")
+@app.get("/chats/all/{user_id}")
 def get_all_chats(user_id: str, is_provider: bool):
     user = accounts_manager.get(user_id)
     if not user:
