@@ -71,7 +71,7 @@ else:
     services_lib = ServicesLib()
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
-IDENTITY_VALIDATION_FIELDS = {}
+IDENTITY_VALIDATION_FIELDS = set()
 REQUIRED_CREATE_FIELDS = {"username", "password",
                           "complete_name", "email", "is_provider", "birth_date"}
 OPTIONAL_CREATE_FIELDS = {"profile_picture", "description"}
