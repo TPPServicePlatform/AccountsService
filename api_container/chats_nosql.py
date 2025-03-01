@@ -197,5 +197,17 @@ class Chats:
 
     def get_chats(self, user_id: str, is_provider: bool) -> Dict:
         if is_provider:
-            return {"clients": [chat['client_id'] for chat in self.collection.find({'provider_id': user_id})]}
-        return {"providers": [chat['provider_id'] for chat in self.collection.find({'client_id': user_id})]}
+            return {"clients": [
+                        {
+                            "client_id": chat['client_id'],
+                            "last_message_at": chat['last_message_at'],
+                            "last_message": chat['messages'][-1]['message']
+                        } for chat in self.collection.find({'provider_id': user_id})
+                    ]}
+        return {"providers": [
+                    {
+                        "provider_id": chat['provider_id'],
+                        "last_message_at": chat['last_message_at'],
+                        "last_message": chat['messages'][-1]['message']
+                    } for chat in self.collection.find({'client_id': user_id})
+                ]}
