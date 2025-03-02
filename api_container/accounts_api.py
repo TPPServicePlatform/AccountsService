@@ -18,6 +18,8 @@ import sys
 import firebase_admin
 from firebase_admin import credentials, auth, exceptions
 from imported_lib.ServicesService.services_lib import ServicesLib
+from imported_lib.SupportService.support_lib import SupportLib
+
 import os
 
 sys.path.append(os.path.abspath(os.path.join(
@@ -63,12 +65,14 @@ if os.getenv('TESTING'):
     chats_manager = Chats(test_client=client)
     favourites_manager = Favourites(test_client=client)
     services_lib = ServicesLib(test_client=client)
+    support_lib = SupportLib(test_client=client)
 else:
     firebase_manager = FirebaseManager()
     accounts_manager = Accounts()
     chats_manager = Chats()
     favourites_manager = Favourites()
     services_lib = ServicesLib()
+    support_lib = SupportLib()
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 IDENTITY_VALIDATION_FIELDS = set()
@@ -103,8 +107,7 @@ def get(username: str):
     if account is None:
         raise HTTPException(status_code=404, detail=f"""Account '{
                             username}' not found""")
-    return account
-
+    return {"status": "ok", "account": account, "suspension": support_lib.check_suspension(account["user_id"])}
 
 @app.post("/login")
 def login(body: dict):
