@@ -696,6 +696,8 @@ def delete_certificate(provider_id: str, certificate_id: str):
         raise HTTPException(status_code=404, detail="Certificate not found")
     if not certificates_manager.delete_certificate(provider_id, certificate_id):
         raise HTTPException(status_code=400, detail="Error deleting certificate")
+    if not services_lib.delete_certification(provider_id, certificate_id):
+        raise HTTPException(status_code=400, detail="Error deleting certification from services")
     return {"status": "ok"}
 
 @app.get("/certificates/unverified")
