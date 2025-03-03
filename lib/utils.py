@@ -2,6 +2,7 @@ import datetime
 import os
 import time
 from typing import Optional, Union
+import uuid
 from sqlalchemy import create_engine
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -71,3 +72,16 @@ def validate_location(client_location, required_fields):
 def validate_identity():
     # Add here a third party service to validate the identity of the user
     return True
+
+def save_file(provider_id: str, _file: Union[bytes, str]) -> str:
+    # Add here a third party service to save the file (e.g. AWS S3)
+    return f"mocked/third_party/storage/{provider_id}/{uuid.uuid4()}.pdf"
+
+def get_file(file_path: str) -> bytes:
+    # Add here a third party service to get the file (e.g. AWS S3)
+    # TODO: put an example pdf
+    return b"mocked/file"
+
+def delete_file(file_path: str):
+    # Add here a third party service to delete the file (e.g. AWS S3)
+    pass

@@ -2,12 +2,13 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import is_valid_date, time_to_string, get_test_engine, validate_identity, validate_location
-# from lib.rev2 import Rev2Graph
-# from lib.interest_predictor import InterestPredictor
+from lib.utils import get_file, is_valid_date, save_file, time_to_string, get_test_engine, validate_identity, validate_location
+from lib.rev2 import Rev2Graph
+from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
+from certificates_nosql import Certificates
 import logging as logger
 import time
 from firebase_manager import FirebaseManager
@@ -66,6 +67,7 @@ if os.getenv('TESTING'):
     favourites_manager = Favourites(test_client=client)
     services_lib = ServicesLib(test_client=client)
     support_lib = SupportLib(test_client=client)
+    certificates_manager = Certificates(test_client=client)
 else:
     firebase_manager = FirebaseManager()
     accounts_manager = Accounts()
@@ -73,6 +75,7 @@ else:
     favourites_manager = Favourites()
     services_lib = ServicesLib()
     support_lib = SupportLib()
+    certificates_manager = Certificates()
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 IDENTITY_VALIDATION_FIELDS = set()
@@ -94,6 +97,8 @@ PROVIDER_RANKINGS_METRICS = {5: {"min_avg_rating": 0.9, "min_finished_percent": 
                              1: {"min_avg_rating": 0.0, "min_finished_percent": 0.0}}
 MIN_FINISHED_RENTALS = 100
 MAX_RATING = 5
+REQUIRED_CERTIFICATE_FIELDS = {"name", "description"}
+VALID_UPDATE_CERTIFICATE_FIELDS = {"name", "description", "path", "is_validated", "expiration_date"}
 
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
@@ -204,8 +209,12 @@ def create(body: dict):
 
 @app.delete("/delete/{username}")
 def delete(username: str):
+    user = accounts_manager.get_by_username(username)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Account not found")
     if not accounts_manager.delete(username):
         raise HTTPException(status_code=404, detail="Account not found")
+    certificates_manager.delete_provider_certificates(user["uuid"])
     return {"status": "ok"}
 
 
@@ -605,3 +614,95 @@ def get_folder_recommendations(
     interest_predictor = InterestPredictor(relations, folder_name)
     recommendations = interest_predictor.get_interest_prediction()
     return {"status": "ok", "recommendations": recommendations}
+
+@app.post("/certificates/new/{provider_id}")
+def add_new_certificate(provider_id: str, body: dict, file: UploadFile = File(...)):
+    data = {key: value for key, value in body.items() if key in REQUIRED_CERTIFICATE_FIELDS}
+    if not all([field in data for field in REQUIRED_CERTIFICATE_FIELDS]):
+        missing_fields = REQUIRED_CERTIFICATE_FIELDS - set(data.keys())
+        raise HTTPException(status_code=400, detail=f"""Missing fields: {
+                            ', '.join(missing_fields)}""")
+    extra_fields = set(data.keys()) - REQUIRED_CERTIFICATE_FIELDS
+    if extra_fields:
+        raise HTTPException(status_code=400, detail=f"""Extra fields: {
+                            ', '.join(extra_fields)}""")
+    user = accounts_manager.get(provider_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    
+    file_path = save_file(provider_id, file)
+    if not file_path:
+        raise HTTPException(status_code=400, detail="Error saving file")
+    if not certificates_manager.add_certificate(provider_id, data["name"], data["description"], file_path):
+        raise HTTPException(status_code=400, detail="Error adding certificate")
+    return {"status": "ok"}
+
+@app.put("/certificates/update/{provider_id}/{certificate_id}")
+def update_certificate(provider_id: str, certificate_id: str, body: dict):
+    update = {key: value for key, value in body.items() if key in VALID_UPDATE_CERTIFICATE_FIELDS}
+    if not any(update):
+        raise HTTPException(status_code=400, detail="No fields to update")
+    extra_fields = set(body.keys()) - VALID_UPDATE_CERTIFICATE_FIELDS
+    if extra_fields:
+        raise HTTPException(status_code=400, detail=f"""Extra fields: {
+                            ', '.join(extra_fields)}""")
+    user = accounts_manager.get(provider_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    certificate = certificates_manager.get_certificate_info(provider_id, certificate_id)
+    if not certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    new_info = {key: value for key, value in certificate.items() if key not in update}
+    if not certificates_manager.update_certificate(provider_id, certificate_id, new_info["name"], new_info["description"], new_info["path"], new_info["is_validated"], new_info["expiration_date"]):
+        raise HTTPException(status_code=400, detail="Error updating certificate")
+    return {"status": "ok"}
+
+@app.get("/certificates/all/{provider_id}")
+def get_provider_certificates(provider_id: str):
+    user = accounts_manager.get(provider_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    certificates = certificates_manager.get_provider_certificates(provider_id)
+    return {"status": "ok", "certificates": certificates}
+
+@app.get("/certificates/one/{provider_id}/{certificate_id}")
+def get_certificate(provider_id: str, certificate_id: str):
+    user = accounts_manager.get(provider_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    certificate = certificates_manager.get_certificate_info(provider_id, certificate_id)
+    if not certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    file = get_file(certificate.pop("path"))
+    return {"status": "ok", "certificate_info": certificate, "certificate_file": file}
+
+@app.delete("/certificates/delete/{provider_id}/{certificate_id}")
+def delete_certificate(provider_id: str, certificate_id: str):
+    user = accounts_manager.get(provider_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    certificate = certificates_manager.get_certificate_info(provider_id, certificate_id)
+    if not certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    if not certificates_manager.delete_certificate(provider_id, certificate_id):
+        raise HTTPException(status_code=400, detail="Error deleting certificate")
+    if not services_lib.delete_certification(provider_id, certificate_id):
+        raise HTTPException(status_code=400, detail="Error deleting certification from services")
+    return {"status": "ok"}
+
+@app.get("/certificates/unverified")
+def get_unverified_certificates(limit: int, offset: int):
+    certificates = certificates_manager.get_unverified_certificates(limit, offset)
+    if not certificates:
+        raise HTTPException(status_code=404, detail="No unverified certificates")
+    return {"status": "ok", "certificates": certificates}
