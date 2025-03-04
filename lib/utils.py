@@ -10,6 +10,7 @@ import logging as logger
 from fastapi import HTTPException
 import re
 import sentry_sdk
+from firebase_admin import messaging
 
 HOUR = 60 * 60
 MINUTE = 60
@@ -103,4 +104,17 @@ def sentry_init():
             "continuous_profiling_auto_start": True,
         },
     )
-    
+
+def _get_mobile_id(user_id: str):
+    # Add here a third party service to get the mobile id of the user
+    return "mocked/mobile_id"
+
+def send_notification(user_id: str, title: str, message: str):
+    message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=title,
+                        body=message,
+                    ),
+                    token=_get_mobile_id(user_id),
+                )
+    messaging.send(message)

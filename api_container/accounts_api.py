@@ -2,7 +2,7 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import get_file, is_valid_date, save_file, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
+from lib.utils import get_file, is_valid_date, save_file, send_notification, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
 from lib.rev2 import Rev2Graph
 from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
@@ -287,6 +287,8 @@ def send_message(destination_id: str, body: dict):
         data["provider_id"], data["client_id"], data["message_content"], sender_id)
     if chat_id is None:
         raise HTTPException(status_code=400, detail="Error inserting message")
+    sender_user = accounts_manager.get(sender_id)["username"]
+    send_notification(destination_id, f"New message from {sender_user}", data["message_content"])
     return {"status": "ok", "chat_id": chat_id}
 
 
@@ -660,6 +662,7 @@ def update_certificate(provider_id: str, certificate_id: str, body: dict):
     new_info = {key: value for key, value in certificate.items() if key not in update}
     if not certificates_manager.update_certificate(provider_id, certificate_id, new_info["name"], new_info["description"], new_info["path"], new_info["is_validated"], new_info["expiration_date"]):
         raise HTTPException(status_code=400, detail="Error updating certificate")
+    send_notification(provider_id, "Certificate updated", f"Your certificate {certificate_id} has been updated")
     return {"status": "ok"}
 
 @app.get("/certificates/all/{provider_id}")
