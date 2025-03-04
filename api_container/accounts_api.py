@@ -2,7 +2,7 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import get_file, is_valid_date, save_file, time_to_string, get_test_engine, validate_identity, validate_location
+from lib.utils import get_file, is_valid_date, save_file, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
 from lib.rev2 import Rev2Graph
 from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
@@ -37,6 +37,8 @@ DEBUG_MODE = os.getenv("DEBUG_MODE").title() == "True"
 if DEBUG_MODE:
     logger.getLogger().setLevel(logger.DEBUG)
 logger.info("DEBUG_MODE: " + str(DEBUG_MODE))
+
+sentry_init()
 
 app = FastAPI(
     title="Accounts API",
@@ -104,7 +106,6 @@ starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
 
 # TODO: (General) -> Create tests for each endpoint && add the required checks in each endpoint
-
 
 @app.get("/get/{username}")
 def get(username: str):

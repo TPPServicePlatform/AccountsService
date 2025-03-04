@@ -1,8 +1,10 @@
 python-dotenv
 fastapi
+sentry-sdk[fastapi]
 uvicorn
 requests
 SQLAlchemy
 firebase-admin
 pymongo[srv]
 mongomock
+python-multipart
