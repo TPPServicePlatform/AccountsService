@@ -103,12 +103,14 @@ PROVIDER_RANKINGS_METRICS = {5: {"min_avg_rating": 0.9, "min_finished_percent": 
 MIN_FINISHED_RENTALS = 100
 MAX_RATING = 5
 REQUIRED_CERTIFICATE_FIELDS = {"name", "description"}
-VALID_UPDATE_CERTIFICATE_FIELDS = {"name", "description", "path", "is_validated", "expiration_date"}
+VALID_UPDATE_CERTIFICATE_FIELDS = {
+    "name", "description", "path", "is_validated", "expiration_date"}
 
 starting_duration = time_to_string(time.time() - time_start)
 logger.info(f"Accounts API started in {starting_duration}")
 
 # TODO: (General) -> Create tests for each endpoint && add the required checks in each endpoint
+
 
 @app.get("/get/{username}")
 def get(username: str):
@@ -117,6 +119,7 @@ def get(username: str):
         raise HTTPException(status_code=404, detail=f"""Account '{
                             username}' not found""")
     return {"status": "ok", "account": account, "suspension": support_lib.check_suspension(account["user_id"])}
+
 
 @app.post("/login")
 def login(body: dict):
@@ -193,6 +196,9 @@ def create(body: dict):
         {field: None for field in OPTIONAL_CREATE_FIELDS if field not in data})
 
     try:
+        if accounts_manager.get_by_username(data["username"]) is not None:
+            raise HTTPException(
+                status_code=400, detail="Username already exists")
         created_user = firebase_manager.create_user(
             data["email"], data["password"])
         if created_user is None:
@@ -200,6 +206,7 @@ def create(body: dict):
                 status_code=400, detail="Account already exists")
 
         if not accounts_manager.insert(data["username"], created_user.uid, data["complete_name"], data["email"], data["profile_picture"], data["is_provider"], data["description"], data["birth_date"]):
+            firebase_manager.delete_user(created_user.uid)
             raise HTTPException(
                 status_code=400, detail="Account already exists")
 
@@ -221,6 +228,15 @@ def update_token(user_id: str, body: dict):
     mobile_token_manager.update_mobile_token(user_id, body["mobile_token"])
     return {"status": "ok"}
 
+@app.put("verify/{uid}")
+def verify(uid: str):
+    user = accounts_manager.get(uid)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    firebase_manager.verify_email(user["email"])
+    return {"status": "ok"}
+
+
 @app.delete("/delete/{username}")
 def delete(username: str):
     user = accounts_manager.get_by_username(username)
@@ -229,6 +245,19 @@ def delete(username: str):
     if not accounts_manager.delete(username):
         raise HTTPException(status_code=404, detail="Account not found")
     certificates_manager.delete_provider_certificates(user["uuid"])
+    firebase_manager.delete_user(user["uuid"])
+    return {"status": "ok"}
+
+
+@app.delete("/deleteuid/{uid}")
+def deleteuid(uid: str):
+    user = accounts_manager.get(uid)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if not accounts_manager.delete(user["username"]):
+        raise HTTPException(status_code=404, detail="Account not found")
+    certificates_manager.delete_provider_certificates(user["uuid"])
+    firebase_manager.delete_user(user["uuid"])
     return {"status": "ok"}
 
 
@@ -316,7 +345,7 @@ def get_chat(provider_id: str, client_id: str, limit: int, offset: int):
         provider_id, client_id, limit, offset)
     if messages is None:
         raise HTTPException(status_code=404, detail="No messages found")
-    
+
     total_messages = chats_manager.count_messages(provider_id, client_id)
     return {"status": "ok", "messages": messages, "total_messages": total_messages}
 
@@ -353,6 +382,7 @@ def search_messages(
         raise HTTPException(status_code=404, detail="No messages found")
     return {"status": "ok", "messages": messages}
 
+
 @app.get("/chats/all/{user_id}")
 def get_all_chats(user_id: str, is_provider: bool):
     user = accounts_manager.get(user_id)
@@ -364,6 +394,7 @@ def get_all_chats(user_id: str, is_provider: bool):
         raise HTTPException(status_code=400, detail="User is not a client")
     all_chats = chats_manager.get_chats(user_id, is_provider)
     return {"status": "ok"} | all_chats
+
 
 @app.get("/rankings/{provider_id}")
 def get_rankings(provider_id: str):
@@ -631,9 +662,11 @@ def get_folder_recommendations(
     recommendations = interest_predictor.get_interest_prediction()
     return {"status": "ok", "recommendations": recommendations}
 
+
 @app.post("/certificates/new/{provider_id}")
 def add_new_certificate(provider_id: str, body: dict, file: UploadFile = File(...)):
-    data = {key: value for key, value in body.items() if key in REQUIRED_CERTIFICATE_FIELDS}
+    data = {key: value for key, value in body.items(
+    ) if key in REQUIRED_CERTIFICATE_FIELDS}
     if not all([field in data for field in REQUIRED_CERTIFICATE_FIELDS]):
         missing_fields = REQUIRED_CERTIFICATE_FIELDS - set(data.keys())
         raise HTTPException(status_code=400, detail=f"""Missing fields: {
@@ -647,7 +680,7 @@ def add_new_certificate(provider_id: str, body: dict, file: UploadFile = File(..
         raise HTTPException(status_code=404, detail="Provider not found")
     if not user["is_provider"]:
         raise HTTPException(status_code=400, detail="User is not a provider")
-    
+
     file_path = save_file(provider_id, file)
     if not file_path:
         raise HTTPException(status_code=400, detail="Error saving file")
@@ -655,9 +688,11 @@ def add_new_certificate(provider_id: str, body: dict, file: UploadFile = File(..
         raise HTTPException(status_code=400, detail="Error adding certificate")
     return {"status": "ok"}
 
+
 @app.put("/certificates/update/{provider_id}/{certificate_id}")
 def update_certificate(provider_id: str, certificate_id: str, body: dict):
-    update = {key: value for key, value in body.items() if key in VALID_UPDATE_CERTIFICATE_FIELDS}
+    update = {key: value for key, value in body.items(
+    ) if key in VALID_UPDATE_CERTIFICATE_FIELDS}
     if not any(update):
         raise HTTPException(status_code=400, detail="No fields to update")
     extra_fields = set(body.keys()) - VALID_UPDATE_CERTIFICATE_FIELDS
@@ -669,14 +704,17 @@ def update_certificate(provider_id: str, certificate_id: str, body: dict):
         raise HTTPException(status_code=404, detail="Provider not found")
     if not user["is_provider"]:
         raise HTTPException(status_code=400, detail="User is not a provider")
-    certificate = certificates_manager.get_certificate_info(provider_id, certificate_id)
+    certificate = certificates_manager.get_certificate_info(
+        provider_id, certificate_id)
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
-    new_info = {key: value for key, value in certificate.items() if key not in update}
+    new_info = {key: value for key, value in certificate.items()
+                if key not in update}
     if not certificates_manager.update_certificate(provider_id, certificate_id, new_info["name"], new_info["description"], new_info["path"], new_info["is_validated"], new_info["expiration_date"]):
         raise HTTPException(status_code=400, detail="Error updating certificate")
     send_notification(mobile_token_manager, provider_id, "Certificate updated", f"Your certificate {certificate_id} has been updated")
     return {"status": "ok"}
+
 
 @app.get("/certificates/all/{provider_id}")
 def get_provider_certificates(provider_id: str):
@@ -688,6 +726,7 @@ def get_provider_certificates(provider_id: str):
     certificates = certificates_manager.get_provider_certificates(provider_id)
     return {"status": "ok", "certificates": certificates}
 
+
 @app.get("/certificates/one/{provider_id}/{certificate_id}")
 def get_certificate(provider_id: str, certificate_id: str):
     user = accounts_manager.get(provider_id)
@@ -695,11 +734,13 @@ def get_certificate(provider_id: str, certificate_id: str):
         raise HTTPException(status_code=404, detail="Provider not found")
     if not user["is_provider"]:
         raise HTTPException(status_code=400, detail="User is not a provider")
-    certificate = certificates_manager.get_certificate_info(provider_id, certificate_id)
+    certificate = certificates_manager.get_certificate_info(
+        provider_id, certificate_id)
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
     file = get_file(certificate.pop("path"))
     return {"status": "ok", "certificate_info": certificate, "certificate_file": file}
+
 
 @app.delete("/certificates/delete/{provider_id}/{certificate_id}")
 def delete_certificate(provider_id: str, certificate_id: str):
@@ -708,18 +749,24 @@ def delete_certificate(provider_id: str, certificate_id: str):
         raise HTTPException(status_code=404, detail="Provider not found")
     if not user["is_provider"]:
         raise HTTPException(status_code=400, detail="User is not a provider")
-    certificate = certificates_manager.get_certificate_info(provider_id, certificate_id)
+    certificate = certificates_manager.get_certificate_info(
+        provider_id, certificate_id)
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
     if not certificates_manager.delete_certificate(provider_id, certificate_id):
-        raise HTTPException(status_code=400, detail="Error deleting certificate")
+        raise HTTPException(
+            status_code=400, detail="Error deleting certificate")
     if not services_lib.delete_certification(provider_id, certificate_id):
-        raise HTTPException(status_code=400, detail="Error deleting certification from services")
+        raise HTTPException(
+            status_code=400, detail="Error deleting certification from services")
     return {"status": "ok"}
+
 
 @app.get("/certificates/unverified")
 def get_unverified_certificates(limit: int, offset: int):
-    certificates = certificates_manager.get_unverified_certificates(limit, offset)
+    certificates = certificates_manager.get_unverified_certificates(
+        limit, offset)
     if not certificates:
-        raise HTTPException(status_code=404, detail="No unverified certificates")
+        raise HTTPException(
+            status_code=404, detail="No unverified certificates")
     return {"status": "ok", "certificates": certificates}
