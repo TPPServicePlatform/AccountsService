@@ -2,13 +2,14 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import get_file, is_valid_date, save_file, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
-# from lib.rev2 import Rev2Graph
-# from lib.interest_predictor import InterestPredictor
+from lib.utils import get_file, is_valid_date, save_file, send_notification, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
+from lib.rev2 import Rev2Graph
+from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
 from certificates_nosql import Certificates
+from mobile_token_nosql import MobileToken
 import logging as logger
 import time
 from firebase_manager import FirebaseManager
@@ -70,6 +71,7 @@ if os.getenv('TESTING'):
     services_lib = ServicesLib(test_client=client)
     support_lib = SupportLib(test_client=client)
     certificates_manager = Certificates(test_client=client)
+    mobile_token_manager = MobileToken(test_client=client)
 else:
     firebase_manager = FirebaseManager()
     accounts_manager = Accounts()
@@ -78,6 +80,7 @@ else:
     services_lib = ServicesLib()
     support_lib = SupportLib()
     certificates_manager = Certificates()
+    mobile_token_manager = MobileToken()
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 IDENTITY_VALIDATION_FIELDS = set()
@@ -214,6 +217,16 @@ def create(body: dict):
         logger.error(f"Error creating user: {e}")
         raise HTTPException(status_code=400, detail="Error creating user")
 
+@app.put("/token/{user_id}")
+def update_token(user_id: str, body: dict):
+    if "mobile_token" not in body:
+        raise HTTPException(status_code=400, detail="Missing mobile_token")
+    extra_fields = set(body.keys()) - {"mobile_token"}
+    if extra_fields:
+        raise HTTPException(status_code=400, detail=f"""Extra fields: {
+                            ', '.join(extra_fields)}""")
+    mobile_token_manager.update_mobile_token(user_id, body["mobile_token"])
+    return {"status": "ok"}
 
 @app.put("verify/{uid}")
 def verify(uid: str):
@@ -316,6 +329,8 @@ def send_message(destination_id: str, body: dict):
         data["provider_id"], data["client_id"], data["message_content"], sender_id)
     if chat_id is None:
         raise HTTPException(status_code=400, detail="Error inserting message")
+    sender_user = accounts_manager.get(sender_id)["username"]
+    send_notification(mobile_token_manager, destination_id, f"New message from {sender_user}", data["message_content"])
     return {"status": "ok", "chat_id": chat_id}
 
 
@@ -696,8 +711,8 @@ def update_certificate(provider_id: str, certificate_id: str, body: dict):
     new_info = {key: value for key, value in certificate.items()
                 if key not in update}
     if not certificates_manager.update_certificate(provider_id, certificate_id, new_info["name"], new_info["description"], new_info["path"], new_info["is_validated"], new_info["expiration_date"]):
-        raise HTTPException(
-            status_code=400, detail="Error updating certificate")
+        raise HTTPException(status_code=400, detail="Error updating certificate")
+    send_notification(mobile_token_manager, provider_id, "Certificate updated", f"Your certificate {certificate_id} has been updated")
     return {"status": "ok"}
 
 
