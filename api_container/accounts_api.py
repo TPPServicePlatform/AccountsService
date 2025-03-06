@@ -200,6 +200,7 @@ def create(body: dict):
                 status_code=400, detail="Account already exists")
 
         if not accounts_manager.insert(data["username"], created_user.uid, data["complete_name"], data["email"], data["profile_picture"], data["is_provider"], data["description"], data["birth_date"]):
+            firebase_manager.delete_user(created_user.uid)
             raise HTTPException(
                 status_code=400, detail="Account already exists")
 
@@ -218,6 +219,7 @@ def verify(uid: str):
         raise HTTPException(status_code=404, detail="Account not found")
     firebase_manager.verify_email(user["email"])
     return {"status": "ok"}
+
 
 @app.delete("/delete/{username}")
 def delete(username: str):
