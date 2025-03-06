@@ -28,6 +28,15 @@ class FirebaseManager():
             print(f"Error signing in user: {e}")
             return None
 
+    def verify_email(self, mail):
+        try:
+            auth.send_email_verification(mail)
+            print(f"Successfully sent email verification to: {mail}")
+        except auth.UserNotFoundError:
+            print(f"User not found: {mail}")
+        except auth.FirebaseError:
+            print(f"Error sending email verification to {mail}")
+
     def delete_user(self, uid):
         auth.delete_user(uid)
         print(f"Successfully deleted user: {uid}")
