@@ -193,6 +193,9 @@ def create(body: dict):
         {field: None for field in OPTIONAL_CREATE_FIELDS if field not in data})
 
     try:
+        if accounts_manager.get_by_username(data["username"]) is not None:
+            raise HTTPException(
+                status_code=400, detail="Username already exists")
         created_user = firebase_manager.create_user(
             data["email"], data["password"])
         if created_user is None:
