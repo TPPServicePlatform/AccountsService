@@ -7,8 +7,6 @@ import logging as logger
 import os
 import sys
 import uuid
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
 from lib.utils import get_actual_time, get_mongo_client
 
 HOUR = 60 * 60

@@ -7,9 +7,6 @@ import sys
 import logging as logger
 from sqlalchemy.orm import Session, sessionmaker
 
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', 'lib')))
-
 HOUR = 60 * 60
 MINUTE = 60
 MILLISECOND = 1_000

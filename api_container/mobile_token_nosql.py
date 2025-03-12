@@ -7,8 +7,7 @@ import logging as logger
 import os
 import sys
 import uuid
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'lib')))
+from firebase_admin import messaging
 from lib.utils import get_actual_time, get_mongo_client
 
 HOUR = 60 * 60
@@ -47,7 +46,10 @@ class MobileToken:
         return True
 
     def _create_collection(self):
-        self.collection.create_index([('user_id', ASCENDING)], unique=True)
+        try:
+            self.collection.create_index([('user_id', ASCENDING)], unique=True)
+        except DuplicateKeyError:
+            logger.warning("Index on 'user_id' already exists.")
 
     def update_mobile_token(self, user_id: str, mobile_token: str):
         actual_time = get_actual_time()
@@ -69,3 +71,17 @@ class MobileToken:
     def get_mobile_token(self, user_id: str) -> Optional[str]:
         mobile_token = self.collection.find_one({'user_id': user_id}) or {}
         return mobile_token.get('mobile_token')
+    
+def send_notification(mobile_token_manager: MobileToken, user_id: str, title: str, message: str):
+    token = mobile_token_manager.get_mobile_token(user_id)
+    if not token:
+        logger.error(f"Failed to send notification to user {user_id}: No mobile token found")
+        return
+    message = messaging.Message(
+                    notification=messaging.Notification(
+                        title=title,
+                        body=message,
+                    ),
+                    token=token
+                )
+    messaging.send(message)
