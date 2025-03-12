@@ -2,14 +2,14 @@ import datetime
 from typing import Optional
 
 import mongomock
-from lib.utils import get_file, is_valid_date, save_file, send_notification, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
+from lib.utils import get_file, is_valid_date, save_file, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
 from lib.rev2 import Rev2Graph
 from lib.interest_predictor import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
 from favourites_nosql import Favourites
 from certificates_nosql import Certificates
-from mobile_token_nosql import MobileToken
+from mobile_token_nosql import MobileToken, send_notification
 import logging as logger
 import time
 from firebase_manager import FirebaseManager
@@ -23,9 +23,6 @@ from imported_lib.ServicesService.services_lib import ServicesLib
 from imported_lib.SupportService.support_lib import SupportLib
 
 import os
-
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.dirname(__file__), '..', '..', 'lib')))
 
 time_start = time.time()
 
