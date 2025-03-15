@@ -75,17 +75,27 @@ def validate_identity():
     return True
 
 def save_file(provider_id: str, _file: Union[bytes, str]) -> str:
-    # Add here a third party service to save the file (e.g. AWS S3)
-    return f"mocked/third_party/storage/{provider_id}/{uuid.uuid4()}.pdf"
+    file_name = f"{provider_id}_{uuid.uuid4()}.pdf"
+    file_path = os.path.join(os.getenv('LOCAL_STORAGE_PATH', '/tmp'), file_name)
+    
+    # check if the directory exists
+    if not os.path.exists(os.path.dirname(file_path)):
+        os.makedirs(os.path.dirname(file_path))
+    
+    with open(file_path, 'wb' if isinstance(_file, bytes) else 'w') as f:
+        f.write(_file)
+    
+    return file_path
 
 def get_file(file_path: str) -> bytes:
-    # Add here a third party service to get the file (e.g. AWS S3)
-    # TODO: put an example pdf
-    return b"mocked/file"
+    with open(file_path, 'rb') as f:
+        return f.read()
 
 def delete_file(file_path: str):
-    # Add here a third party service to delete the file (e.g. AWS S3)
-    pass
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    else:
+        raise HTTPException(status_code=404, detail="File not found")
 
 def sentry_init():
     sentry_sdk.init(
