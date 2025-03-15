@@ -3,7 +3,8 @@ from typing import Optional
 
 import mongomock
 from lib.utils import get_file, is_valid_date, save_file, sentry_init, time_to_string, get_test_engine, validate_identity, validate_location
-from lib.rev2 import Rev2Graph
+# from lib.rev2 import Rev2Graph
+from lib.new_rev2 import Rev2Graph, rev2_calculator
 from lib.interest_prediction import InterestPredictor
 from accounts_sql import Accounts
 from chats_nosql import Chats
@@ -21,6 +22,7 @@ import firebase_admin
 from firebase_admin import credentials, auth, exceptions
 from imported_lib.ServicesService.services_lib import ServicesLib
 from imported_lib.SupportService.support_lib import SupportLib
+from multiprocessing import Process
 
 import os
 
@@ -78,6 +80,11 @@ else:
     support_lib = SupportLib()
     certificates_manager = Certificates()
     mobile_token_manager = MobileToken()
+    
+    #services_lib.get_recent_ratings(max_delta_days=360)
+    ratings_obtainer = lambda: services_lib.get_recent_ratings(max_delta_days=360)
+    results_saver = lambda results: accounts_manager.rev2_results_saver(results)
+    rev2_process = Process(target=rev2_calculator, args=(ratings_obtainer, results_saver))
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 IDENTITY_VALIDATION_FIELDS = set()
@@ -469,7 +476,7 @@ def get_fairness():
     if not edge_list:
         raise HTTPException(status_code=404, detail="No ratings found")
     graph = Rev2Graph(edge_list)
-    results = graph.get_results()
+    results = graph.calculate()
     return {"status": "ok", "results": results}
 
 
