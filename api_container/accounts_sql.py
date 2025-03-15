@@ -1,6 +1,6 @@
 from lib.utils import get_actual_time, get_engine
 from typing import Optional, Union
-from sqlalchemy import Integer, MetaData, Table, Column, String, Boolean, Float
+from sqlalchemy import Integer, MetaData, Table, Column, String, Boolean, Float, bindparam, update
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import os
 import sys
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 HOUR = 60 * 60
 MINUTE = 60
 MILLISECOND = 1_000
+MAX_BATCH = 1_000
 
 # TODO: (General) -> Create tests for each method && add the required checks in each method
 
@@ -31,8 +32,8 @@ class Accounts:
 
     Special for clients (is_provider = False) (when the user is a provider, the following fields are None):
     - reviewer_score: float -- This is the fairness value that the user has when reviewing a product (from 0 -bad- to 1 -good-) (result of the rev2 algorithm)
-    - client_count_score: int -- This is the number of reviews that the user has received from providers
-    - client_total_score: int -- This is the total score that the user has received from providers
+    - client_count_score: int -- This is the number of reviews that the user has received from providers (result of reviews)
+    - client_total_score: int -- This is the total score that the user has received from providers (result of reviews)
     """
 
     def __init__(self, engine=None):
@@ -157,3 +158,17 @@ class Accounts:
     def clear(self):
         self.metadata.drop_all()
         self.metadata.create_all()
+
+    def rev2_results_saver(self, results: dict):
+        with Session(self.engine) as session:
+            for i in range(0, len(results), MAX_BATCH):
+                batch = list(results.items())[i:i + MAX_BATCH]
+                batch_dict = [{"uuid": k, "reviewer_score": v} for k, v in batch]
+                stmt = self.accounts.update().\
+                    where(self.accounts.c.uuid == bindparam('uuid')).\
+                    values({
+                        'reviewer_score': bindparam('reviewer_score'),
+                        'uuid': bindparam('uuid')
+                    })
+                session.execute(stmt, batch_dict)
+                session.commit()

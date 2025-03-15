@@ -111,3 +111,34 @@ def test_update(accounts):
     assert result
     account = accounts.get("1234")
     assert account['complete_name'] == "Updated User"
+
+def test_rev2_results_saver(accounts):
+    accounts.insert(
+        username="testuser1",
+        uuid="1234",
+        complete_name="Test User 1",
+        email="testuser1@example.com",
+        profile_picture=None,
+        is_provider=False,
+        description="Test description 1",
+        birth_date="2000-01-01"
+    )
+    accounts.insert(
+        username="testuser2",
+        uuid="5678",
+        complete_name="Test User 2",
+        email="testuser2@example.com",
+        profile_picture=None,
+        is_provider=False,
+        description="Test description 2",
+        birth_date="2000-02-02"
+    )
+    results = {
+        "1234": 0.8,
+        "5678": 0.9
+    }
+    accounts.rev2_results_saver(results)
+    account1 = accounts.get("1234")
+    account2 = accounts.get("5678")
+    assert account1['reviewer_score'] == 0.8
+    assert account2['reviewer_score'] == 0.9
