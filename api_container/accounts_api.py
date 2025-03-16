@@ -81,10 +81,7 @@ else:
     certificates_manager = Certificates()
     mobile_token_manager = MobileToken()
     
-    #services_lib.get_recent_ratings(max_delta_days=360)
-    ratings_obtainer = lambda: services_lib.get_recent_ratings(max_delta_days=360)
-    results_saver = lambda results: accounts_manager.rev2_results_saver(results)
-    rev2_process = Process(target=rev2_calculator, args=(ratings_obtainer, results_saver))
+    rev2_process = Process(target=rev2_calculator)
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
 IDENTITY_VALIDATION_FIELDS = set()

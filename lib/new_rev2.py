@@ -9,6 +9,9 @@ from queue import Queue
 from multiprocessing import Pool
 import logging as logger
 
+from accounts_sql import Accounts
+from imported_lib.ServicesService.services_lib import ServicesLib
+
 MAX_THREADS = max(50, os.cpu_count())
 UPDATE_FREQUENCY = 15 # days
 
@@ -113,7 +116,9 @@ class Rev2Graph:
             fairness_results.update(fairness)
         return fairness_results
     
-def rev2_calculator(ratings_obtainer, results_saver):
+def rev2_calculator():
+    services_lib = ServicesLib()
+    accounts_manager = Accounts()
     logger.basicConfig(format='%(levelname)s: %(asctime)s - [REV2] %(message)s',
                    stream=sys.stdout, level=logger.INFO)
     next_update = datetime.datetime.now()
@@ -121,7 +126,7 @@ def rev2_calculator(ratings_obtainer, results_saver):
         sleep_time = (next_update - datetime.datetime.now()).total_seconds()
         logger.info(f"Next update in {sleep_time} seconds")
         sleep(max(0, sleep_time))
-        ratings_list = ratings_obtainer()
+        ratings_list = services_lib.get_recent_ratings(max_delta_days=360)
         if not ratings_list or len(ratings_list) == 0:
             # print("[REV2] No ratings found. Waiting for next update...")
             logger.info("No ratings found. Waiting for next update...")
@@ -130,7 +135,7 @@ def rev2_calculator(ratings_obtainer, results_saver):
         logger.info("Calculating...")
         rev2_graph = Rev2Graph(ratings_list)
         results = rev2_graph.calculate()
-        results_saver(results)
+        accounts_manager.rev2_results_saver(results)
         next_update = datetime.datetime.now() + datetime.timedelta(days=UPDATE_FREQUENCY)
             
 def _divide_components(graph):
