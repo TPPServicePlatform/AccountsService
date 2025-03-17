@@ -3,4 +3,3 @@ SQLAlchemy
 numpy
 pandas
 networkx
-stripe
