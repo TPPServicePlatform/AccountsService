@@ -1,3 +1,4 @@
+import base64
 import datetime
 from typing import Optional
 
@@ -770,7 +771,8 @@ def get_certificate(provider_id: str, certificate_id: str):
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
     file = get_file(certificate.pop("path"))
-    return {"status": "ok", "certificate_info": certificate, "certificate_file": file}
+    b64_file = base64.b64encode(file).decode("utf-8")
+    return {"status": "ok", "certificate_info": certificate, "certificate_file": b64_file}
 
 
 @app.delete("/certificates/delete/{provider_id}/{certificate_id}")
