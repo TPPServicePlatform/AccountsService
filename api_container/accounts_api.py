@@ -775,9 +775,8 @@ def get_certificate(provider_id: str, certificate_id: str):
         provider_id, certificate_id)
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
-    # file = get_file(certificate.pop("path"))
 
-    return FileResponse(certificate.pop("path"), media_type="application/pdf")
+    return FileResponse(certificate['path'], media_type="application/pdf")
 
 
 @app.delete("/certificates/delete/{provider_id}/{certificate_id}")
