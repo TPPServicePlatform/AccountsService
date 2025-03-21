@@ -17,6 +17,7 @@ import time
 from firebase_manager import FirebaseManager
 from fastapi import FastAPI, File, Query, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import sys
 import firebase_admin
@@ -759,7 +760,7 @@ def get_provider_certificates(provider_id: str):
     return {"status": "ok", "certificates": certificates}
 
 
-@app.get("/certificates/one/{provider_id}/{certificate_id}")
+@app.get("/certificates/file/{provider_id}/{certificate_id}")
 def get_certificate(provider_id: str, certificate_id: str):
     user = accounts_manager.get(provider_id)
     if not user:
@@ -770,9 +771,9 @@ def get_certificate(provider_id: str, certificate_id: str):
         provider_id, certificate_id)
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
-    file = get_file(certificate.pop("path"))
-    b64_file = base64.b64encode(file).decode("utf-8")
-    return {"status": "ok", "certificate_info": certificate, "certificate_file": b64_file}
+    # file = get_file(certificate.pop("path"))
+
+    return FileResponse(certificate.pop("path"), media_type="application/pdf")
 
 
 @app.delete("/certificates/delete/{provider_id}/{certificate_id}")
