@@ -326,8 +326,11 @@ def send_message(destination_id: str, body: dict):
     if not accounts_manager.get(data["client_id"]):
         raise HTTPException(status_code=404, detail="Client not found")
 
-    sender_id = ({data["provider_id"], data["client_id"]} -
-                 {destination_id}).pop()
+    sender_id_set = {data["provider_id"], data["client_id"]} - {destination_id}
+    if len(sender_id_set) != 1:
+        raise HTTPException(
+            status_code=400, detail="Error determining sender, check your params")
+    sender_id = sender_id_set.pop()
     chat_id = chats_manager.insert_message(
         data["provider_id"], data["client_id"], data["message_content"], sender_id)
     if chat_id is None:
