@@ -11,6 +11,12 @@ services:
     restart: unless-stopped
     networks:
       - my-services-network
+    volumes:
+      - accounts-local-storage:${LOCAL_STORAGE_PATH}
+
+volumes:
+  accounts-local-storage:
+    driver: local
 
 networks:
   my-services-network:
