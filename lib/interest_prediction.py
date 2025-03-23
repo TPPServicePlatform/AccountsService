@@ -20,7 +20,7 @@ class InterestPredictor:
         return bipartite_graph
     
     def _get_ebunch(self, graph: nx.Graph, user_id: str) -> List[Tuple[str, str]]:
-        return [(user_id, service) for service in self.services if not graph.has_edge(user_id, service)]
+        return [(user_id, service) for service in self.services if not graph.has_edge(user_id, service) and service in self.bipartite_graph]
     
     def get_interest_prediction(self) -> List[str]:
         predictions = nx.common_neighbor_centrality(self.bipartite_graph, ebunch=self._ebunch)
