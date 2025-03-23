@@ -1,3 +1,4 @@
+from fastapi import Form, UploadFile, File
 import base64
 import datetime
 from typing import Optional
@@ -82,7 +83,7 @@ else:
     support_lib = SupportLib()
     certificates_manager = Certificates()
     mobile_token_manager = MobileToken()
-    
+
     rev2_process = Process(target=rev2_calculator)
 
 REQUIRED_LOCATION_FIELDS = {"longitude", "latitude"}
@@ -220,6 +221,7 @@ def create(body: dict):
         logger.error(f"Error creating user: {e}")
         raise HTTPException(status_code=400, detail="Error creating user")
 
+
 @app.put("/token/{user_id}")
 def update_token(user_id: str, body: dict):
     if "mobile_token" not in body:
@@ -230,6 +232,7 @@ def update_token(user_id: str, body: dict):
                             ', '.join(extra_fields)}""")
     mobile_token_manager.update_mobile_token(user_id, body["mobile_token"])
     return {"status": "ok"}
+
 
 @app.put("verify/{uid}")
 def verify(uid: str):
@@ -336,7 +339,8 @@ def send_message(destination_id: str, body: dict):
     if chat_id is None:
         raise HTTPException(status_code=400, detail="Error inserting message")
     sender_user = accounts_manager.get(sender_id)["username"]
-    send_notification(mobile_token_manager, destination_id, f"New message from {sender_user}", data["message_content"])
+    send_notification(mobile_token_manager, destination_id,
+                      f"New message from {sender_user}", data["message_content"])
     return {"status": "ok", "chat_id": chat_id}
 
 
@@ -694,34 +698,32 @@ def add_new_certificate(provider_id: str, body: dict, file: UploadFile = File(..
         raise HTTPException(status_code=400, detail="Error adding certificate")
     return {"status": "ok"}
 
+
 @app.post("/certificates/new2/{provider_id}")
-def add_new_certificate2(provider_id: str, body: dict):
-    required = REQUIRED_CERTIFICATE_FIELDS + {"file"}
-    data = {key: value for key, value in body.items(
-    ) if key in required}
-    if not all([field in data for field in required]):
-        missing_fields = required - set(data.keys())
-        raise HTTPException(status_code=400, detail=f"""Missing fields: {
-                            ', '.join(missing_fields)}""")
-    extra_fields = set(data.keys()) - required
-    if extra_fields:
-        raise HTTPException(status_code=400, detail=f"""Extra fields: {
-                            ', '.join(extra_fields)}""")
+def add_new_certificate2(
+    provider_id: str,
+    name: str = Form(...),
+    description: str = Form(...),
+    file: UploadFile = File(...)
+):
+    required = {"name", "description", "file"}
+    data = {"name": name, "description": description, "file": file}
+
     user = accounts_manager.get(provider_id)
     if not user:
         raise HTTPException(status_code=404, detail="Provider not found")
     if not user["is_provider"]:
         raise HTTPException(status_code=400, detail="User is not a provider")
-    
-    # todo: ver si esto va o hay que cambiarlo
-    if not isinstance(data["file"], bytes):
-        raise HTTPException(status_code=400, detail="File must be binary")
 
-    file_path = save_file(provider_id, body["file"])
+    file_contents = file.file.read()
+    file_path = save_file(provider_id, file_contents)
+
     if not file_path:
         raise HTTPException(status_code=400, detail="Error saving file")
-    if not certificates_manager.add_certificate(provider_id, data["name"], data["description"], file_path):
+
+    if not certificates_manager.add_certificate(provider_id, name, description, file_path):
         raise HTTPException(status_code=400, detail="Error adding certificate")
+
     return {"status": "ok"}
 
 
@@ -747,8 +749,10 @@ def update_certificate(provider_id: str, certificate_id: str, body: dict):
     new_info = {key: value for key, value in certificate.items()
                 if key not in update}
     if not certificates_manager.update_certificate(provider_id, certificate_id, new_info["name"], new_info["description"], new_info["path"], new_info["is_validated"], new_info["expiration_date"]):
-        raise HTTPException(status_code=400, detail="Error updating certificate")
-    send_notification(mobile_token_manager, provider_id, "Certificate updated", f"Your certificate {certificate_id} has been updated")
+        raise HTTPException(
+            status_code=400, detail="Error updating certificate")
+    send_notification(mobile_token_manager, provider_id, "Certificate updated",
+                      f"Your certificate {certificate_id} has been updated")
     return {"status": "ok"}
 
 
@@ -774,9 +778,8 @@ def get_certificate(provider_id: str, certificate_id: str):
         provider_id, certificate_id)
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
-    # file = get_file(certificate.pop("path"))
 
-    return FileResponse(certificate.pop("path"), media_type="application/pdf")
+    return FileResponse(certificate['path'], media_type="application/pdf")
 
 
 @app.delete("/certificates/delete/{provider_id}/{certificate_id}")
