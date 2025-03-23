@@ -11,8 +11,10 @@ services:
     restart: unless-stopped
     networks:
       - my-services-network
+    environment:
+      - LOCAL_STORAGE_PATH=${LOCAL_STORAGE_PATH}
     volumes:
-      - accounts-local-storage:${LOCAL_STORAGE_PATH}
+      - ./shared_volume:${LOCAL_STORAGE_PATH}
 
 volumes:
   accounts-local-storage:

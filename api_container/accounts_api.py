@@ -674,33 +674,7 @@ def get_folder_recommendations(
 
 
 @app.post("/certificates/new/{provider_id}")
-def add_new_certificate(provider_id: str, body: dict, file: UploadFile = File(...)):
-    data = {key: value for key, value in body.items(
-    ) if key in REQUIRED_CERTIFICATE_FIELDS}
-    if not all([field in data for field in REQUIRED_CERTIFICATE_FIELDS]):
-        missing_fields = REQUIRED_CERTIFICATE_FIELDS - set(data.keys())
-        raise HTTPException(status_code=400, detail=f"""Missing fields: {
-                            ', '.join(missing_fields)}""")
-    extra_fields = set(data.keys()) - REQUIRED_CERTIFICATE_FIELDS
-    if extra_fields:
-        raise HTTPException(status_code=400, detail=f"""Extra fields: {
-                            ', '.join(extra_fields)}""")
-    user = accounts_manager.get(provider_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Provider not found")
-    if not user["is_provider"]:
-        raise HTTPException(status_code=400, detail="User is not a provider")
-
-    file_path = save_file(provider_id, file)
-    if not file_path:
-        raise HTTPException(status_code=400, detail="Error saving file")
-    if not certificates_manager.add_certificate(provider_id, data["name"], data["description"], file_path):
-        raise HTTPException(status_code=400, detail="Error adding certificate")
-    return {"status": "ok"}
-
-
-@app.post("/certificates/new2/{provider_id}")
-def add_new_certificate2(
+def add_new_certificate(
     provider_id: str,
     name: str = Form(...),
     description: str = Form(...),
@@ -725,7 +699,6 @@ def add_new_certificate2(
         raise HTTPException(status_code=400, detail="Error adding certificate")
 
     return {"status": "ok"}
-
 
 @app.put("/certificates/update/{provider_id}/{certificate_id}")
 def update_certificate(provider_id: str, certificate_id: str, body: dict):
