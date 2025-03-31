@@ -697,6 +697,20 @@ def add_new_certificate(
 
     return {"status": "ok"}
 
+
+@app.delete("/certificates/delete/{provider_id}")
+def delete_provider_certificates(provider_id: str):
+    user = accounts_manager.get(provider_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    if not user["is_provider"]:
+        raise HTTPException(status_code=400, detail="User is not a provider")
+    if not certificates_manager.delete_provider_certificates(provider_id):
+        raise HTTPException(
+            status_code=400, detail="Error deleting certificates")
+    return {"status": "ok"}
+
+
 @app.put("/certificates/update/{provider_id}/{certificate_id}")
 def update_certificate(provider_id: str, certificate_id: str, body: dict):
     update = {key: value for key, value in body.items(

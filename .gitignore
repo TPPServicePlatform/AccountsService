@@ -1,6 +1,6 @@
 # Accounts Service specific files
 /api_container/credentials_firebase.json
-
+/shared_volume/
 # Imported libraries
 /imported_lib/
 

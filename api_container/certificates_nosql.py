@@ -15,6 +15,7 @@ MILLISECOND = 1_000
 
 # TODO: (General) -> Create tests for each method && add the required checks in each method
 
+
 class Certificates:
     """
     Certificates class that stores data in a MongoDB collection.
@@ -45,7 +46,7 @@ class Certificates:
             self.db = self.client[test_db or os.getenv('MONGO_DB')]
         self.collection = self.db['certificates']
         self._create_collection()
-    
+
     def _check_connection(self):
         try:
             self.client.admin.command('ping')
@@ -72,12 +73,18 @@ class Certificates:
             {'$project': {
                 '_id': 0,
                 'certificate_id': '$certificates.certificate_id',
-                'name': '$certificates.name'
-                }
+                'name': '$certificates.name',
+                'description': '$certificates.description',
+                'path': '$certificates.path',
+                'created_at': '$certificates.created_at',
+                'last_update_at': '$certificates.last_update_at',
+                'is_validated': '$certificates.is_validated',
+                'expiration_date': '$certificates.expiration_date'
+            }
             }
         ]
         return list(self.collection.aggregate(pipeline)) or None
-    
+
     def get_certificate_info(self, provider_id: int, certificate_id: str) -> Optional[Dict]:
         pipeline = [
             {'$match': {'uuid': provider_id, 'certificates.certificate_id': certificate_id}},
@@ -92,12 +99,12 @@ class Certificates:
                 'last_update_at': '$certificates.last_update_at',
                 'is_validated': '$certificates.is_validated',
                 'expiration_date': '$certificates.expiration_date'
-                }
+            }
             }
         ]
         result = list(self.collection.aggregate(pipeline))
         return result[0] if result else None
-    
+
     def add_certificate(self, provider_id: int, name: str, description: str, path: str):
         if not self.collection.find_one({'uuid': provider_id}):
             self._create_profile(provider_id)
@@ -112,9 +119,10 @@ class Certificates:
             'is_validated': False,
             'expiration_date': None
         }
-        self.collection.update_one({'uuid': provider_id}, {'$push': {'certificates': certificate}})
+        self.collection.update_one({'uuid': provider_id}, {
+                                   '$push': {'certificates': certificate}})
         return certificate_id
-    
+
     def update_certificate(self, provider_id: int, certificate_id: str, name: str, description: str, path: str, is_validated: bool, expiration_date: int) -> bool:
         if not self.get_certificate_info(provider_id, certificate_id):
             return False
@@ -130,19 +138,20 @@ class Certificates:
             }
         })
         return True
-    
+
     def delete_certificate(self, provider_id: int, certificate_id: str) -> bool:
         if not self.get_certificate_info(provider_id, certificate_id):
             return False
-        result = self.collection.update_one({'uuid': provider_id}, {'$pull': {'certificates': {'certificate_id': certificate_id}}})
+        result = self.collection.update_one({'uuid': provider_id}, {
+                                            '$pull': {'certificates': {'certificate_id': certificate_id}}})
         return result.modified_count > 0
-    
+
     def delete_provider_certificates(self, provider_id: int) -> bool:
         if not self.collection.find_one({'uuid': provider_id}):
             return False
         result = self.collection.delete_one({'uuid': provider_id})
         return result.deleted_count > 0
-    
+
     def get_unverified_certificates(self, limit: int, offset: int) -> Optional[List[Dict]]:
         pipeline = [
             {'$unwind': '$certificates'},
@@ -160,7 +169,7 @@ class Certificates:
                 'created_at': '$certificates.created_at',
                 'last_update_at': '$certificates.last_update_at',
                 'expiration_date': '$certificates.expiration_date'
-                }
+            }
             }
         ]
         return list(self.collection.aggregate(pipeline))
