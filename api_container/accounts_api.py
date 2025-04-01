@@ -121,6 +121,13 @@ def get(username: str):
                             username}' not found""")
     return {"status": "ok", "account": account, "suspension": support_lib.check_suspension(account["user_id"])}
 
+@app.get("/notifications/get/{user_id}")
+def get_notifications(user_id: str, body: dict):
+    delete_all = body.get("delete_all", False)
+    notifications = mobile_token_manager.get_notifications(user_id, delete_all)
+    if notifications is None:
+        raise HTTPException(status_code=404, detail=f"""Notifications not found""")
+    return {"status": "ok", "notifications": notifications}
 
 @app.post("/login")
 def login(body: dict):
