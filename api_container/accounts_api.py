@@ -140,6 +140,9 @@ def login(body: dict):
     user = firebase_manager.login_user(data["email"], data["password"])
     if user is None:
         raise HTTPException(status_code=404, detail="Invalid credentials")
+    suspended = support_lib.check_suspension(user.uid)
+    if suspended:
+        raise HTTPException(status_code=403, detail="User is suspended")
     return {"status": "ok", "user_id": f"{user.uid}"}
 
 
