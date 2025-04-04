@@ -25,16 +25,29 @@ class Metricas:
 def generar_grafo_con_metricas(grafo_original):
     nuevo_grafo = nx.DiGraph()
 
-    for usuario, producto, datos in grafo_original.edges(data=True):
+    for nodo1, nodo2, datos in grafo_original.edges(data=True):
         metricas = Metricas(datos['rating'], 1)
+        if nodo1.startswith('U'):
+            usuario = nodo1
+            producto = nodo2
+        else:
+            usuario = nodo2
+            producto = nodo1
+        assert usuario.startswith('U')
+        assert producto.startswith('S')
+        # print(f"Agregando arista: {usuario} -> {producto} con rating: {datos['rating']}")
         nuevo_grafo.add_edge(usuario, producto, metricas=metricas)
 
     return nuevo_grafo
 
 def actualizar_fairness(grafo, usuario):
+    # if grafo.out_degree(usuario) == 0:
+    #     return 1
     return sum(grafo.edges[arista]['metricas'].fiabilidad for arista in grafo.out_edges(usuario)) / grafo.out_degree(usuario)
 
 def actualizar_valor(grafo, producto, fairness):
+    # if grafo.in_degree(producto) == 0:
+    #     return 1
     return sum(grafo.edges[(usuario, producto)]['metricas'].score * fairness[usuario] for usuario in grafo.predecessors(producto)) / grafo.in_degree(producto)
 
 def actualizar_fiabilidad(grafo, usuario, producto, gamma1, gamma2, fairness, valor):
@@ -59,21 +72,25 @@ def rev2(grafo_original, gamma1, gamma2, diff):
     grafo = generar_grafo_con_metricas(grafo_original)
     fairness = {nodo: 1 for nodo in grafo.nodes if grafo.out_degree(nodo) > 0}
     valor = {nodo: 1 for nodo in grafo.nodes if grafo.in_degree(nodo) > 0}
+    # fairness = {nodo: 1 for nodo in grafo.nodes if nodo.startswith('U')}
+    # valor = {nodo: 1 for nodo in grafo.nodes if nodo.startswith('S')}
     
-    i = 0
+    it = 0
     max_diff_fairness = 2 * diff
     max_diff_confiabilidad = 2 * diff
     max_diff_valor = 2 * diff
 
     while max_diff_fairness > diff or max_diff_confiabilidad > diff or max_diff_valor > diff:
-        i+=1
-        print(f"Calculando la {i}° iteración...")
+        it+=1
+        print(f"Calculando la {it}° iteración...")
         vieja_fairness = fairness.copy()
         vieja_confiabilidad = {arista: datos['metricas'].fiabilidad for arista, datos in grafo.edges.items()}
         viejo_valor = valor.copy()
 
         usuarios = [nodo for nodo in grafo.nodes if grafo.out_degree(nodo) > 0]
         productos = [nodo for nodo in grafo.nodes if grafo.in_degree(nodo) > 0]
+        # usuarios = [nodo for nodo in grafo.nodes if nodo.startswith('U')]
+        # productos = [nodo for nodo in grafo.nodes if nodo.startswith('S')]
 
         with Pool(MAX_THREADS) as pool:
             fairness_vals = pool.map(actualizar_fairness_wrapper, [(grafo, nodo) for nodo in usuarios])
@@ -90,10 +107,14 @@ def rev2(grafo_original, gamma1, gamma2, diff):
         nueva_confiabilidad = {arista: datos['metricas'].fiabilidad for arista, datos in grafo.edges.items()}
         nuevo_valor = valor
         
+        print(f"Iteración {it} terminada.")
+        print("Obteniendo max_diff_fairness")
         max_diff_fairness = max(abs(vieja_fairness[nodo] - nueva_fairness[nodo]) for nodo in usuarios)
+        print("Obteniendo max_diff_confiabilidad")
         max_diff_confiabilidad = max(abs(vieja_confiabilidad[arista] - nueva_confiabilidad[arista]) for arista in grafo.edges)
+        print("Obteniendo max_diff_valor")
         max_diff_valor = max(abs(viejo_valor[nodo] - nuevo_valor[nodo]) for nodo in productos)
-        print(f"{i}° iteración:")
+        print(f"{it}° iteración:")
         print("- max_diff_fairness: ", round(max_diff_fairness, 4))
         print("- max_diff_confiabilidad: ", round(max_diff_confiabilidad, 4))
         print("- max_diff_valor: ", round(max_diff_valor, 4), '\n')
@@ -109,11 +130,16 @@ class Rev2Graph:
         self.components = _divide_components(self.complete_graph)
         
     def calculate(self, gamma1=0.5, gamma2=0.5, diff=0.01):
-        with Pool(MAX_THREADS) as pool:
-            results = pool.map(lambda graph: rev2(graph, gamma1, gamma2, diff), self.components)
+        
+        # with Pool(MAX_THREADS) as pool:
+        #     results = pool.starmap(rev2_wrapper, [(component, gamma1, gamma2, diff) for component in self.components])
         fairness_results = {}
-        for _, fairness, _ in results:
+        # for _, fairness, _ in results:
+        #     fairness_results.update(fairness)
+        for component in self.components:
+            _, fairness, _ = rev2(component, gamma1, gamma2, diff)
             fairness_results.update(fairness)
+            
         return fairness_results
     
 def rev2_calculator():
@@ -135,6 +161,8 @@ def rev2_calculator():
         logger.info("Calculating...")
         rev2_graph = Rev2Graph(ratings_list)
         results = rev2_graph.calculate()
+        # remove the prefix "U" from the keys
+        results = {key[1:]: value for key, value in results.items()}
         accounts_manager.rev2_results_saver(results)
         next_update = datetime.datetime.now() + datetime.timedelta(days=UPDATE_FREQUENCY)
             
@@ -160,7 +188,7 @@ def _get_component(graph, node, visited):
                 visited.add(neighbor)
                 queue.put(neighbor)
                 component_graph.add_node(neighbor)
-                component_graph.add_edge(current_node, neighbor, weight=graph[current_node][neighbor]['weight'])
+                component_graph.add_edge(current_node, neighbor, rating=graph[current_node][neighbor]['weight'])
     return component_graph
     
             

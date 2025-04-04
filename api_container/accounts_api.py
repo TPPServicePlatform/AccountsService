@@ -486,11 +486,13 @@ def review_client(client_id: str, provider_id: str, body: dict):
 @app.get("/fairness")  # TODO: make this run in the background automatically
 def get_fairness():
     edge_list = services_lib.get_recent_ratings(max_delta_days=360)
-    # edge_list = _mocked_list()
     if not edge_list:
         raise HTTPException(status_code=404, detail="No ratings found")
     graph = Rev2Graph(edge_list)
-    results = graph.calculate()
+    results: dict = graph.calculate()
+    results = {key[1:]: value for key, value in results.items()}
+    #sort the dict
+    results = dict(sorted(results.items(), key=lambda item: item[1], reverse=True))
     return {"status": "ok", "results": results}
 
 
