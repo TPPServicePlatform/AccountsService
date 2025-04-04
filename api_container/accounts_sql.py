@@ -6,6 +6,7 @@ import os
 import sys
 import logging as logger
 from sqlalchemy.orm import Session, sessionmaker
+import statistics
 
 HOUR = 60 * 60
 MINUTE = 60
@@ -43,6 +44,33 @@ class Accounts:
         self.metadata = MetaData()
         self.metadata.bind = self.engine
         self.Session = sessionmaker(bind=self.engine)
+        
+    def get_all_reviewer_scores(self, limit: int) -> list:
+        with self.engine.connect() as connection:
+            query = self.accounts.select().where(self.accounts.c.is_provider == False).where(self.accounts.c.reviewer_score != None)
+            query = query.with_only_columns(self.accounts.c.uuid, self.accounts.c.reviewer_score)
+            query = query.order_by(self.accounts.c.reviewer_score.asc())
+            query = query.limit(min(1000, limit))
+            result = connection.execute(query)
+            rows = result.fetchall()
+            if rows is None:
+                return []
+            return [row._asdict() for row in rows]
+        
+    def reviewer_scores_stats(self) -> dict:
+        with self.engine.connect() as connection:
+            query = self.accounts.select().where(self.accounts.c.is_provider == False).where(self.accounts.c.reviewer_score != None)
+            query = query.with_only_columns(self.accounts.c.reviewer_score)
+            result = connection.execute(query)
+            rows = result.fetchall()
+            scores = [row[0] for row in rows]
+            return {
+                "count": len(scores),
+                "avg": statistics.mean(scores) if scores else None,
+                "median": statistics.median(scores) if scores else None,
+                "min": min(scores) if scores else None,
+                "max": max(scores) if scores else None
+            }
 
     def create_table(self):
         with Session(self.engine) as session:

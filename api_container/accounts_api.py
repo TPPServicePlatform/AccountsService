@@ -493,9 +493,16 @@ def get_fairness():
     results = {key[1:]: value for key, value in results.items()}
     # sort the dict
     results = dict(
-        sorted(results.items(), key=lambda item: item[1], reverse=True))
+        sorted(results.items(), key=lambda item: item[1], reverse=False))
     return {"status": "ok", "results": results}
 
+@app.get("/fairness/db")
+def get_fairness_db(limit: int = 100):
+    data = accounts_manager.get_all_reviewer_scores(limit)
+    if not data:
+        raise HTTPException(status_code=404, detail="No data found")
+    stats = accounts_manager.reviewer_scores_stats()
+    return {"status": "ok", "stats": stats, f"data (first {limit})": data}
 
 @app.put("/favourites/add/{client_id}/{provider_id}")
 def add_favourite_provider(client_id: str, provider_id: str):
