@@ -491,8 +491,9 @@ def get_fairness():
     graph = Rev2Graph(edge_list)
     results: dict = graph.calculate()
     results = {key[1:]: value for key, value in results.items()}
-    #sort the dict
-    results = dict(sorted(results.items(), key=lambda item: item[1], reverse=True))
+    # sort the dict
+    results = dict(
+        sorted(results.items(), key=lambda item: item[1], reverse=True))
     return {"status": "ok", "results": results}
 
 
@@ -644,7 +645,7 @@ def get_folder(client_id: str, folder_name: str):
     return {"status": "ok", "services": services}
 
 
-@app.get("folders/{client_id}/{folder_name}/recommendations")
+@app.get("/folders/{client_id}/{folder_name}/recommendations")
 def get_folder_recommendations(
     client_id: str,
     folder_name: str,
