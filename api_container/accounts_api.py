@@ -679,6 +679,8 @@ def get_folder_recommendations(
         raise HTTPException(
             status_code=404, detail="No available services in the area")
 
+    folder_services = favourites_manager.get_folder_services(client_id, folder_name)
+    available_services.extend(folder_services)
     relations_dict = favourites_manager.get_relations(available_services)
     if relations_dict is None:
         raise HTTPException(
@@ -686,8 +688,10 @@ def get_folder_recommendations(
 
     relations = [(folder, saved_service) for folder, saved_services in relations_dict.items()
                  for saved_service in saved_services]
-    interest_predictor = InterestPredictor(relations, folder_name)
-    recommendations = interest_predictor.get_interest_prediction()
+    interest_predictor = InterestPredictor(relations, f"{client_id}_{folder_name}")
+    recommendations: dict = interest_predictor.get_interest_prediction()
+    recommendations = dict(
+        sorted(recommendations.items(), key=lambda item: item[1], reverse=True))
     return {"status": "ok", "recommendations": recommendations}
 
 

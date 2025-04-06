@@ -7,59 +7,62 @@ CLIENT_INDEX = 0
 SERVICE_INDEX = 1
 
 class InterestPredictor:
-    def __init__(self, reviews: List[Tuple[str, str]], user_id: str):
+    def __init__(self, reviews: List[Tuple[str, str]], folder_name: str):
         self.bipartite_graph = self._create_bipartite_graph(reviews)
         self.services = {r[SERVICE_INDEX]: reviews.count(r) for r in reviews}
-        self.user_id = user_id
-        # self.existing_services = {service for (user, service) in reviews if user == user_id}
-        self._ebunch = self._get_ebunch(self.bipartite_graph, self.user_id)
-        self.data_graph = self._connect_users(reviews)
+        self.folder_name = folder_name
+        # self.existing_services = {service for (folder, service) in reviews if folder == folder_name}
+        self._ebunch = self._get_ebunch(self.bipartite_graph, self.folder_name)
+        self.data_graph = self._connect_folders(reviews)
 
     def _create_bipartite_graph(self, reviews: List[Tuple[str, str]]) -> nx.Graph:
         bipartite_graph = nx.Graph()
         bipartite_graph.add_edges_from((r[CLIENT_INDEX], r[SERVICE_INDEX]) for r in reviews)
         return bipartite_graph
     
-    def _get_ebunch(self, graph: nx.Graph, user_id: str) -> List[Tuple[str, str]]:
-        return [(user_id, service) for service in self.services if not graph.has_edge(user_id, service) and service in self.bipartite_graph]
+    def _get_ebunch(self, graph: nx.Graph, folder_name: str) -> List[Tuple[str, str]]:
+        return [(folder_name, service) for service in self.services if not graph.has_edge(folder_name, service) and service in self.bipartite_graph]
     
-    def _connect_users(self, reviews: List[Tuple[str, str]]) -> nx.Graph:
+    def _connect_folders(self, reviews: List[Tuple[str, str]]) -> nx.Graph:
         data_graph = self.bipartite_graph.copy()
-        all_users = set(r[CLIENT_INDEX] for r in reviews)
-        for user in all_users:
-            for service in self.bipartite_graph.neighbors(user):
-                for other_user in self.bipartite_graph.neighbors(service):
-                    if user == other_user:
+        all_folders = set(r[CLIENT_INDEX] for r in reviews)
+        for folder in all_folders:
+            for service in self.bipartite_graph.neighbors(folder):
+                for other_folder in self.bipartite_graph.neighbors(service):
+                    if folder == other_folder:
                         continue
-                    if not data_graph.has_edge(user, other_user):
-                        data_graph.add_edge(user, other_user)
+                    if not data_graph.has_edge(folder, other_folder):
+                        data_graph.add_edge(folder, other_folder)
         return data_graph
                         
     def get_interest_prediction(self) -> List[str]:
+        # get all nodes
+        all_nodes = self.data_graph.nodes()
+        print("nodes: ", all_nodes)
         predictions = nx.common_neighbor_centrality(self.data_graph, ebunch=self._ebunch)
-        return {service: score for (user, service, score) in predictions}
+        return {service: score for (folder, service, score) in predictions}
 
     
 # def _get_mock_data() -> List[Tuple[str, str]]:
 #     return [
-#         ('user1', 'service1'),
-#         ('user1', 'service2'),
-#         ('user1', 'service3'),
-#         ('user2', 'service1'),
-#         ('user2', 'service2'),
-#         ('user3', 'service4'),
-#         ('user3', 'service5'),
-#         ('user4', 'service1'),
-#         ('user4', 'service3'),
-#         ('user5', 'service1'),
-#         ('user5', 'service2'),
-#         ('user5', 'service6'),
+#         ('folder1', 'service1'),
+#         ('folder1', 'service2'),
+#         ('folder1', 'service3'),
+#         ('folder2', 'service1'),
+#         ('folder2', 'service2'),
+#         ('folder3', 'service4'),
+#         ('folder3', 'service5'),
+#         ('folder4', 'service1'),
+#         ('folder4', 'service3'),
+#         ('folder5', 'service1'),
+#         ('folder5', 'service2'),
+#         ('folder5', 'service6'),
 #     ]
 
 # def main():
 #     reviews = _get_mock_data()
-#     user_id = 'user2'
-#     predictor = InterestPredictor(reviews, user_id)
+#     folder_name = 'folder2'
+#     predictor = InterestPredictor(reviews, folder_name)
 #     predictions = predictor.get_interest_prediction()
 #     print(predictions)
 
